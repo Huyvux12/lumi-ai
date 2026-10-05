@@ -10,6 +10,7 @@ import {
   Square,
   UserRound,
   Mic,
+  Phone,
   Volume2,
   Upload,
   Loader2,
@@ -23,7 +24,12 @@ import {
 } from "@/lib/chat/client";
 import { api, mutation, requestId } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
-import { DialoguePlayer, transcript, type Voice } from "@/lib/chat/speech";
+import {
+  captureUtterance,
+  DialoguePlayer,
+  transcript,
+  type Voice,
+} from "@/lib/chat/speech";
 import { Mascot } from "./Mascot";
 import { Portrait } from "./Portrait";
 import { RichText } from "./RichText";
@@ -59,6 +65,9 @@ export function ChatView({
   const [playing, setPlaying] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [callMode, setCallMode] = useState<
+    "off" | "listening" | "thinking" | "speaking"
+  >("off");
   const [older, setOlder] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const transcriptionRef = useRef<AbortController | null>(null);
@@ -75,6 +84,16 @@ export function ChatView({
   const tracks = useRef<MediaStream | null>(null);
   const recordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRequest = useRef<{ text: string; userId?: string } | null>(null);
+  const callEpoch = useRef(0);
+  const callActive = useRef(false);
+  const callAbort = useRef<AbortController | null>(null);
+  const micStream = useRef<MediaStream | null>(null);
+  const sendRef = useRef<
+    (text: string, retryMessageId?: string) => Promise<ChatMessage | null>
+  >(async () => null);
+  const listenRef = useRef<(message: ChatMessage) => Promise<void>>(
+    async () => {},
+  );
   function stopVoice() {
     voiceEpoch.current++;
     player.current?.stop();
@@ -150,6 +169,11 @@ export function ChatView({
     }
     return () => {
       versions.current++;
+      callEpoch.current++;
+      callActive.current = false;
+      callAbort.current?.abort();
+      micStream.current?.getTracks().forEach((track) => track.stop());
+      micStream.current = null;
       abortRef.current?.abort();
       player.current?.stop();
       discardRecording();
@@ -193,8 +217,11 @@ export function ChatView({
         setPlaying(null);
     }
   }
-  async function send(text: string, retryMessageId?: string) {
-    if (!user || busy.current || loading) return;
+  async function send(
+    text: string,
+    retryMessageId?: string,
+  ): Promise<ChatMessage | null> {
+    if (!user || busy.current || loading) return null;
     const version = epoch.current;
     busy.current = true;
     stopVoice();
@@ -220,7 +247,7 @@ export function ChatView({
     lastRequest.current = { text, userId: retryMessageId };
     try {
       const id = await conversation();
-      if (version !== epoch.current) return;
+      if (version !== epoch.current) return null;
       await streamTurn(
         id,
         text,
@@ -250,6 +277,7 @@ export function ChatView({
             setMode(data.mode ?? "live");
             if (
               autoPlay &&
+              !callActive.current &&
               current.segments?.some((s) => s.type === "dialogue")
             )
               void listen(current);
@@ -268,6 +296,7 @@ export function ChatView({
       if (!complete && !ctrl.signal.aborted)
         throw new Error("Phản hồi đã bị gián đoạn. Hãy thử lại.");
       void refreshRecent();
+      return complete ? current : null;
     } catch (e) {
       if (version === epoch.current) {
         setMessages([
@@ -279,6 +308,7 @@ export function ChatView({
         if (!ctrl.signal.aborted)
           setError(e instanceof Error ? e.message : "Không thể tạo phản hồi.");
       }
+      return null;
     } finally {
       if (version === epoch.current) {
         setStreaming(false);
@@ -299,7 +329,108 @@ export function ChatView({
     if (lastRequest.current)
       void send(lastRequest.current.text, lastRequest.current.userId);
   }
+  function releaseCall() {
+    callEpoch.current++;
+    callActive.current = false;
+    callAbort.current?.abort();
+    micStream.current?.getTracks().forEach((track) => track.stop());
+    micStream.current = null;
+    setCallMode("off");
+  }
+  function endCall() {
+    releaseCall();
+    stopVoice();
+  }
+  function interruptCall() {
+    if (!callActive.current) return;
+    stopVoice();
+  }
+  async function runCall(version: number, stream: MediaStream) {
+    const maxMs = user?.plan === "premium" ? 120000 : 60000;
+    while (callEpoch.current === version) {
+      setCallMode("listening");
+      const ctrl = new AbortController();
+      callAbort.current = ctrl;
+      let blob: Blob | null = null;
+      try {
+        blob = await captureUtterance(stream, { signal: ctrl.signal, maxMs });
+      } catch (e) {
+        if (callEpoch.current !== version) return;
+        setError(e instanceof Error ? e.message : "Không thể mở microphone.");
+        endCall();
+        return;
+      }
+      if (callEpoch.current !== version || !blob) continue;
+      setCallMode("thinking");
+      let text = "";
+      try {
+        const result = await transcript(
+          blob,
+          blob.type.includes("mp4") ? "speech.m4a" : "speech.webm",
+        );
+        text = result.text.trim();
+      } catch (e) {
+        if (callEpoch.current !== version) return;
+        const message = e instanceof Error ? e.message : "";
+        if (message.includes("Chưa nhận được lời nói")) continue;
+        setError(message || "Không thể nhận dạng lời nói.");
+        continue;
+      }
+      if (!text || callEpoch.current !== version) continue;
+      const reply = await sendRef.current(text);
+      if (callEpoch.current !== version) return;
+      if (!reply?.id || !reply.segments?.some((s) => s.type === "dialogue"))
+        continue;
+      setCallMode("speaking");
+      await listenRef.current(reply);
+    }
+  }
+  function beginCall() {
+    if (callActive.current) {
+      endCall();
+      return;
+    }
+    if (
+      !user ||
+      loading ||
+      streaming ||
+      recording ||
+      transcribing ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      if (!navigator.mediaDevices?.getUserMedia)
+        setError("Trình duyệt chưa hỗ trợ ghi âm.");
+      return;
+    }
+    player.current ??= new DialoguePlayer();
+    player.current.unlock();
+    const version = ++callEpoch.current;
+    callActive.current = true;
+    setCallMode("listening");
+    void (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        if (callEpoch.current !== version) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        micStream.current = stream;
+        await runCall(version, stream);
+      } catch (e) {
+        if (callEpoch.current !== version) return;
+        setError(e instanceof Error ? e.message : "Không thể mở microphone.");
+        releaseCall();
+      }
+    })();
+  }
   async function reset() {
+    endCall();
     stopTurn();
     discardRecording();
     epoch.current++;
@@ -419,7 +550,17 @@ export function ChatView({
       setError(e instanceof Error ? e.message : "Không thể mở microphone.");
     }
   }
+  sendRef.current = send;
+  listenRef.current = listen;
   const waitingFirstToken = streaming && messages.at(-1)?.content === "";
+  const callLabel =
+    callMode === "listening"
+      ? "Đang nghe"
+      : callMode === "thinking"
+        ? "Đang nghĩ"
+        : callMode === "speaking"
+          ? "Đang nói"
+          : "";
   const lumiMood = error
     ? "sad"
     : waitingFirstToken
@@ -479,11 +620,13 @@ export function ChatView({
               transition={{ duration: 0.2 }}
               className={`truncate text-xs ${streaming ? "text-accent" : "text-fg-2"}`}
             >
-              {streaming
-                ? "đang trả lời…"
-                : scene
-                  ? `Cảnh: ${scene.title}`
-                  : `Người thực hiện @${c.creator}`}
+              {callLabel
+                ? callLabel
+                : streaming
+                  ? "đang trả lời…"
+                  : scene
+                    ? `Cảnh: ${scene.title}`
+                    : `Người thực hiện @${c.creator}`}
             </motion.p>
           </AnimatePresence>
         </div>
@@ -493,6 +636,17 @@ export function ChatView({
         >
           <UserRound className="size-4" aria-hidden="true" /> Hồ sơ
         </Link>
+        <motion.button
+          type="button"
+          onClick={beginCall}
+          disabled={!user || loading || (callMode === "off" && (streaming || recording || transcribing))}
+          whileTap={{ scale: 0.94 }}
+          aria-pressed={callMode !== "off"}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${callMode === "off" ? "bg-white/[0.06] text-fg-2 hover:bg-white/10 hover:text-fg" : "bg-emerald-400/20 text-emerald-200"}`}
+        >
+          <Phone className="size-4" aria-hidden="true" />
+          <span>{callMode === "off" ? "Gọi" : "Kết thúc"}</span>
+        </motion.button>
         <motion.button
           type="button"
           onClick={reset}
@@ -696,6 +850,37 @@ export function ChatView({
         </div>
       </div>
 
+      {callMode !== "off" && (
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pb-2 sm:px-6">
+          <div className="glass flex w-full items-center gap-3 rounded-3xl px-4 py-3">
+            <Portrait
+              seed={c.seed ?? c.id}
+              hue={c.hue}
+              className={`size-12 shrink-0 rounded-full ${callMode === "listening" ? "ring-2 ring-emerald-400" : callMode === "speaking" ? "ring-2 ring-accent" : "ring-2 ring-white/20"}`}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{c.name}</p>
+              <p className="text-sm text-fg-2">{callLabel}. Nói xong thì ngừng một nhịp.</p>
+            </div>
+            {callMode === "speaking" && (
+              <button
+                type="button"
+                onClick={interruptCall}
+                className="rounded-full bg-white/10 px-3 py-2 text-sm"
+              >
+                Ngắt và nói
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={endCall}
+              className="rounded-full bg-danger px-3 py-2 text-sm text-black"
+            >
+              Kết thúc
+            </button>
+          </div>
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -798,7 +983,7 @@ export function ChatView({
             ref={inputRef}
             rows={1}
             value={input}
-            disabled={!user || loading || transcribing}
+            disabled={!user || loading || transcribing || callMode !== "off"}
             maxLength={4000}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -811,12 +996,22 @@ export function ChatView({
                 submit();
               }
             }}
-            placeholder={`Nhắn tin cho ${c.name}…`}
+            placeholder={
+              callMode !== "off"
+                ? "Đang gọi. Hãy nói, không cần gõ."
+                : `Nhắn tin cho ${c.name}…`
+            }
             className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[15px] placeholder:text-fg-3 focus:outline-none focus-visible:outline-none [field-sizing:content]"
           />
           <button
             type="button"
-            disabled={!user || loading || streaming || transcribing}
+            disabled={
+              !user ||
+              loading ||
+              streaming ||
+              transcribing ||
+              callMode !== "off"
+            }
             onClick={() => void microphone()}
             aria-label={recording ? "Dừng ghi âm" : "Ghi âm"}
             className={`grid size-10 shrink-0 place-items-center rounded-full disabled:opacity-30 ${recording ? "bg-danger text-black animate-pulse" : "hover:bg-white/10"}`}
@@ -826,7 +1021,12 @@ export function ChatView({
           <button
             type="button"
             disabled={
-              !user || loading || streaming || transcribing || recording
+              !user ||
+              loading ||
+              streaming ||
+              transcribing ||
+              recording ||
+              callMode !== "off"
             }
             onClick={() => fileRef.current?.click()}
             aria-label="Tải bản ghi âm"
@@ -860,7 +1060,12 @@ export function ChatView({
                 whileTap={input.trim() ? { scale: 0.88, y: -2 } : undefined}
                 aria-label="Gửi"
                 disabled={
-                  !input.trim() || !user || loading || recording || transcribing
+                  !input.trim() ||
+                  !user ||
+                  loading ||
+                  recording ||
+                  transcribing ||
+                  callMode !== "off"
                 }
                 className="grid size-10 shrink-0 place-items-center rounded-full text-black transition-[background,box-shadow] disabled:bg-surface-2 disabled:text-fg-3"
                 style={

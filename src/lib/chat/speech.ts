@@ -3,14 +3,32 @@ export type Voice = { id: string; name: string };
 export class DialoguePlayer {
   private context: AudioContext | null = null;
   private controller: AbortController | null = null;
+  private sources: AudioBufferSourceNode[] = [];
   private job: string | null = null;
   private epoch = 0;
+  /** Call from a click so later playback can start after speech recognition. */
+  unlock() {
+    if (!this.context || this.context.state === "closed")
+      this.context = new AudioContext({ sampleRate: 24000 });
+    void this.context.resume();
+    const buffer = this.context.createBuffer(1, 1, 24000);
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.context.destination);
+    source.start();
+  }
   stop() {
     this.epoch++;
     this.controller?.abort();
     this.controller = null;
-    void this.context?.close().catch(() => {});
-    this.context = null;
+    for (const source of this.sources) {
+      try {
+        source.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.sources = [];
     if (this.job)
       void api(`/speech/jobs/${this.job}/cancel`, mutation()).catch(() => {});
     this.job = null;
@@ -20,9 +38,9 @@ export class DialoguePlayer {
     const epoch = this.epoch;
     const ctrl = new AbortController();
     this.controller = ctrl;
-    // Resume synchronously within the click gesture (required on mobile browsers).
-    const context = new AudioContext({ sampleRate: 24000 });
-    this.context = context;
+    if (!this.context || this.context.state === "closed")
+      this.context = new AudioContext({ sampleRate: 24000 });
+    const context = this.context;
     await context.resume();
     const job = await api<{ id: string }>(`/messages/${messageId}/tts`, {
       ...mutation(voiceId ? { voice_id: voiceId } : {}, requestId()),
@@ -73,13 +91,19 @@ export class DialoguePlayer {
         const source = context.createBufferSource();
         source.buffer = buffer;
         source.connect(context.destination);
+        this.sources.push(source);
         when = Math.max(when, context.currentTime + 0.03);
         source.start(when);
         when += buffer.duration;
       }
+      if (ctrl.signal.aborted || epoch !== this.epoch) return;
       if (!bytes || carry.length)
         throw new Error("Giọng đọc chưa hoàn chỉnh. Hãy thử lại.");
-      while (epoch === this.epoch && context.currentTime < when)
+      while (
+        epoch === this.epoch &&
+        !ctrl.signal.aborted &&
+        context.currentTime < when
+      )
         await new Promise((r) => setTimeout(r, 80));
     } finally {
       await reader.cancel().catch(() => {});
@@ -88,6 +112,89 @@ export class DialoguePlayer {
     }
   }
 }
+const SPEECH_RMS = 0.02;
+const SILENCE_MS = 800;
+const MIN_SPEECH_MS = 280;
+const NO_SPEECH_MS = 12000;
+
+function level(analyser: AnalyserNode, samples: Uint8Array<ArrayBuffer>) {
+  analyser.getByteTimeDomainData(samples);
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const value = (samples[i] - 128) / 128;
+    sum += value * value;
+  }
+  return Math.sqrt(sum / samples.length);
+}
+
+/** Record until the speaker pauses. Returns null when nobody spoke. */
+export async function captureUtterance(
+  stream: MediaStream,
+  options: { signal: AbortSignal; maxMs: number },
+) {
+  if (typeof MediaRecorder === "undefined")
+    throw new Error("Trình duyệt chưa hỗ trợ ghi âm.");
+  const mime = [
+    "audio/webm;codecs=opus",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ].find((type) => MediaRecorder.isTypeSupported(type));
+  const context = new AudioContext();
+  const source = context.createMediaStreamSource(stream);
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 2048;
+  source.connect(analyser);
+  const samples = new Uint8Array(analyser.fftSize);
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (event) => {
+    if (event.data.size) chunks.push(event.data);
+  };
+  const stopped = new Promise<void>((resolve) => {
+    rec.addEventListener("stop", () => resolve(), { once: true });
+  });
+  const halt = () => {
+    if (rec.state !== "inactive") rec.stop();
+  };
+  options.signal.addEventListener("abort", halt, { once: true });
+  rec.start();
+  const started = performance.now();
+  let speechAt: number | null = null;
+  let lastVoice = 0;
+  let speechMs = 0;
+  try {
+    while (!options.signal.aborted && rec.state === "recording") {
+      const now = performance.now();
+      if (level(analyser, samples) >= SPEECH_RMS) {
+        speechAt ??= now;
+        lastVoice = now;
+        speechMs += 50;
+      }
+      if (now - started >= options.maxMs) break;
+      if (
+        speechAt !== null &&
+        speechMs >= MIN_SPEECH_MS &&
+        now - lastVoice >= SILENCE_MS
+      )
+        break;
+      if (speechAt === null && now - started >= NO_SPEECH_MS) {
+        halt();
+        await stopped;
+        return null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } finally {
+    source.disconnect();
+    await context.close().catch(() => {});
+    options.signal.removeEventListener("abort", halt);
+  }
+  if (rec.state !== "inactive") rec.stop();
+  await stopped;
+  if (options.signal.aborted || speechMs < MIN_SPEECH_MS) return null;
+  return new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
+}
+
 export async function transcript(
   blob: Blob,
   filename: string,
