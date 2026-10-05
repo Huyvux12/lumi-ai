@@ -1,0 +1,9 @@
+.env*
+.claude
+.mcp.json
+image
+qa
+reference
+node_modules
+.next
+tsconfig.tsbuildinfo

@@ -1,0 +1,79 @@
+CHARACTER DISCOVERY WEB — SKILL / REPO / LIBRARY / MCP CATALOG
+
+Dùng URL plain text dưới đây để Claude Code tra hướng dẫn chính chủ mới nhất. Đây là toolbox để chọn lọc; không cài tất cả. Kiểm tra license, compatibility, activity và install steps trước khi dùng.
+
+A. CODING AGENT SKILLS / DESIGN GUIDANCE
+Anthropic Claude Code official plugins (frontend-design): https://github.com/anthropics/claude-plugins-official/tree/main/plugins/frontend-design
+UI UX Pro Max skill: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+Vercel Agent Skills (web-design-guidelines, react-best-practices): https://github.com/vercel-labs/agent-skills
+Motion AI Kit (official skill/install docs): https://motion.dev/docs/ai-kit
+Motion AI Kit installer docs: https://motion.dev/docs/ai-kit-install
+React Bits (components/effects; check current skills/docs): https://github.com/DavidHDev/react-bits
+ThreeUI requested by user (inspect README/license/assets; don't assume every component is free): https://github.com/MengTo/threeui
+
+B. REACT UI / COMPONENT REGISTRIES
+shadcn/ui: https://ui.shadcn.com/
+shadcn MCP docs: https://ui.shadcn.com/docs/mcp
+21st.dev component platform / MCP repo: https://github.com/21st-dev/magic-mcp
+21st.dev CLI docs/repo: https://github.com/21st-dev/cli
+Magic UI components: https://magicui.design/
+Magic UI MCP repo: https://github.com/magicuidesign/mcp
+Animate UI: https://github.com/imskyleen/animate-ui
+React Bits: https://reactbits.dev/
+Aceternity UI: https://ui.aceternity.com/components
+Radix UI: https://www.radix-ui.com/
+Embla Carousel: https://www.embla-carousel.com/
+Swiper: https://swiperjs.com/
+
+C. UI MOTION / SCROLL / TRANSITIONS
+Motion for React docs/package: https://motion.dev/docs/react
+GSAP docs: https://gsap.com/docs/v3/
+React Spring: https://www.react-spring.dev/
+AutoAnimate: https://auto-animate.formkit.com/
+Anime.js: https://animejs.com/documentation/
+Lenis smooth scroll: https://github.com/darkroomengineering/lenis
+Web Animations / View Transitions docs: https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API
+
+D. ANIMATED ILLUSTRATION / ICON / CHARACTER ART
+Rive React runtime: https://github.com/rive-app/rive-react
+Rive docs: https://rive.app/docs/
+Lottie Web: https://github.com/airbnb/lottie-web
+dotLottie web player: https://github.com/LottieFiles/dotlottie-web
+LottieFiles assets/catalog: https://lottiefiles.com/
+Lordicon animated icons: https://lordicon.com/
+Live2D Cubism SDK for Web: https://www.live2d.com/en/sdk/about/
+pixi-live2d-display (check maintenance/license/compatibility carefully): https://github.com/guansss/pixi-live2d-display
+VRM integration for Three.js: https://github.com/pixiv/three-vrm
+
+E. 3D / CANVAS / GRAPHICS (optional, only for a concrete visual)
+ThreeUI: https://github.com/MengTo/threeui
+Three.js: https://github.com/mrdoob/three.js
+React Three Fiber: https://github.com/pmndrs/react-three-fiber
+Drei helpers: https://github.com/pmndrs/drei
+Theatre.js: https://github.com/theatre-js/theatre
+Spline: https://spline.design/
+PixiJS: https://github.com/pixijs/pixijs
+Babylon.js: https://github.com/BabylonJS/Babylon.js
+tsParticles: https://github.com/tsparticles/tsparticles
+React Bits effects: https://reactbits.dev/
+
+F. MCP / DOCS / BROWSER VERIFICATION
+21st.dev MCP: https://github.com/21st-dev/magic-mcp
+shadcn MCP: https://ui.shadcn.com/docs/mcp
+Magic UI MCP: https://github.com/magicuidesign/mcp
+Motion AI Kit: https://motion.dev/docs/ai-kit
+Context7 MCP: https://github.com/upstash/context7
+Playwright MCP (Microsoft): https://github.com/microsoft/playwright-mcp
+Chrome DevTools MCP: https://github.com/ChromeDevTools/chrome-devtools-mcp
+Figma MCP (official): https://github.com/figma/mcp-server-guide
+
+G. OPTIONAL APP PACKAGES — DON'T INSTALL UNLESS NEEDED
+Motion: https://www.npmjs.com/package/motion
+Embla Carousel React: https://www.npmjs.com/package/embla-carousel-react
+Lucide React: https://lucide.dev/guide/packages/lucide-react
+TanStack Virtual: https://tanstack.com/virtual/latest
+TanStack Query: https://tanstack.com/query/latest
+Zustand: https://zustand.docs.pmnd.rs/
+Sonner: https://sonner.emilkowal.ski/
+
+Suggested minimal combination for this project: one UI/design skill + React best-practices skill + Motion skill; shadcn primitives if needed; Motion and Embla or CSS scroll-snap; Playwright for visual QA; Context7 for current docs. Add Rive/Lottie/ThreeUI/3D only if the implementation actually uses them.
