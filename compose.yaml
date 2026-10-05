@@ -23,6 +23,7 @@ services:
       retries: 12
     restart: unless-stopped
   backend:
+    image: ghcr.io/huyvux12/lumi-ai-backend:dev
     build: ./backend
     env_file: .env.backend
     environment:
@@ -37,7 +38,11 @@ services:
       redis: {condition: service_healthy}
     restart: unless-stopped
   frontend:
-    build: .
+    image: ghcr.io/huyvux12/lumi-ai-frontend:dev
+    build:
+      context: .
+      args:
+        PYTHON_API_URL: http://backend:8000
     ports: [127.0.0.1:3000:3000]
     depends_on: [backend]
     restart: unless-stopped
