@@ -5,6 +5,7 @@ import base64
 import json
 from contextlib import asynccontextmanager
 import httpx
+from pydantic import ValidationError
 from .prompts import checked_segments, system_prompt
 from .security import fail
 from .token_budget import prompt_tokens
@@ -20,6 +21,13 @@ async def sse_events(lines):
             fields.clear()
     if fields:
         yield "\n".join(fields)
+
+
+def _json_rejected(response):
+    try:
+        return response.json().get("error", {}).get("code") == "json_validate_failed"
+    except (ValueError, KeyError):
+        return False
 
 
 async def generate_reply(client, settings, prompt, character, scene, history, quota):
@@ -50,25 +58,37 @@ async def generate_reply(client, settings, prompt, character, scene, history, qu
             selected.pop(0)
     if not selected:
         fail("CONTEXT_TOO_LONG", "Hồ sơ nhân vật vượt giới hạn ngữ cảnh.", 400)
-    response = await client.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {settings.groq_key}"},
-        json={
-            "model": settings.groq_model,
-            "messages": messages + selected,
-            "response_format": {"type": "json_object"},
-            "max_completion_tokens": quota["output_tokens"],
-            "temperature": 0.8,
-            **({"reasoning_effort": "none"} if settings.groq_model.startswith("qwen/") else {}),
-        },
-    )
-    if response.status_code != 200:
-        fail("PROVIDER_UNAVAILABLE", "Nhân vật đang tạm gián đoạn. Hãy thử lại sau.", 502)
-    data = response.json()
-    choice = data["choices"][0]
-    if choice.get("finish_reason") == "length":
-        fail("INVALID_REPLY", "Phản hồi chưa hoàn chỉnh. Vui lòng thử lại.", 502)
-    return checked_segments(choice["message"]["content"], prompt.active_tags), data.get("usage", {})
+    payload = {
+        "model": settings.groq_model,
+        "messages": messages + selected,
+        "response_format": {"type": "json_object"},
+        "max_completion_tokens": quota["output_tokens"],
+        "temperature": 0.8,
+        **({"reasoning_effort": "none"} if settings.groq_model.startswith("qwen/") else {}),
+    }
+    for attempt in range(2):
+        response = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.groq_key}"},
+            json=payload,
+        )
+        if response.status_code == 400 and _json_rejected(response) and attempt == 0:
+            continue
+        if response.status_code != 200:
+            fail("PROVIDER_UNAVAILABLE", "Nhân vật đang tạm gián đoạn. Hãy thử lại sau.", 502)
+        data = response.json()
+        choice = data["choices"][0]
+        if choice.get("finish_reason") == "length":
+            if attempt == 0:
+                continue
+            fail("INVALID_REPLY", "Phản hồi chưa hoàn chỉnh. Vui lòng thử lại.", 502)
+        try:
+            return checked_segments(choice["message"]["content"], prompt.active_tags), data.get("usage", {})
+        except (ValueError, ValidationError):
+            if attempt == 0:
+                continue
+            fail("INVALID_REPLY", "Phản hồi chưa hoàn chỉnh. Vui lòng thử lại.", 502)
+    fail("PROVIDER_UNAVAILABLE", "Nhân vật đang tạm gián đoạn. Hãy thử lại sau.", 502)
 
 
 async def transcribe(client, settings, content, filename, mime):

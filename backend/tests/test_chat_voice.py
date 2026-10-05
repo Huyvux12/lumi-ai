@@ -205,6 +205,31 @@ def test_invalid_vocal_tags_rejected(dialogue):
         checked_segments(raw, ["giggle", "laugh"])
 
 
+def test_assistant_history_stays_json():
+    from types import SimpleNamespace
+    from app.prompts import assistant_model_content
+
+    message = SimpleNamespace(
+        role="assistant",
+        content="*Gojo hạ kính.*\n\nChào cậu.",
+        segments=[
+            {"type": "narration", "text": "Gojo hạ kính."},
+            {
+                "type": "dialogue",
+                "text": "Chào cậu.",
+                "tts_text": "Chào cậu.",
+                "emotion": "warm",
+                "pace": "normal",
+                "delivery": "normal",
+            },
+        ],
+    )
+    parsed = json.loads(assistant_model_content(message))
+    assert parsed["schema_version"] == 1
+    assert parsed["segments"][0] == {"type": "narration", "text": "Gojo hạ kính."}
+    assert parsed["segments"][1]["type"] == "dialogue"
+
+
 def test_narrative_tags_never_spoken():
     raw = json.dumps(
         {"schema_version": 1, "segments": [{"type": "narration", "text": "<laugh> Đi vào rừng."}]}

@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from .catalog_api import accessible_character, message_view, own_conversation
 from .models import Message, Prompt, Scene, Usage, now_ms
+from .prompts import assistant_model_content
 from .providers import generate_reply
 from .quotas import entitlement, finish, reserve
 from .schemas import TurnInput
@@ -85,7 +86,7 @@ async def turn(
         .scalars()
         .all()
     )
-    history = [{"role": m.role, "content": m.content} for m in reversed(old)]
+    history = [{"role": m.role, "content": assistant_model_content(m)} for m in reversed(old)]
     history.append({"role": "user", "content": body.text})
     user_message = retry_message or Message(conversation_id=ident, role="user", content=body.text)
     if not retry_message:

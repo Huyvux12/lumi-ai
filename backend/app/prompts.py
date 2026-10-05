@@ -77,6 +77,28 @@ def system_prompt(prompt, character, scene=None):
     )
 
 
+def assistant_model_content(message) -> str:
+    """Replay assistant turns as schema JSON. Display text teaches the model to leave the schema."""
+    segments = getattr(message, "segments", None) or []
+    if getattr(message, "role", None) != "assistant" or not segments:
+        return message.content
+    rendered = []
+    for segment in segments:
+        if segment.get("type") == "narration":
+            rendered.append({"type": "narration", "text": segment.get("text") or ""})
+            continue
+        rendered.append(
+            {
+                "type": "dialogue",
+                "text": segment.get("tts_text") or segment.get("text") or "",
+                "emotion": segment.get("emotion") or "neutral",
+                "pace": segment.get("pace") or "normal",
+                "delivery": segment.get("delivery") or "normal",
+            }
+        )
+    return json.dumps({"schema_version": 1, "segments": rendered}, ensure_ascii=False)
+
+
 def checked_segments(raw: str, enabled: list[str]):
     reply = Reply.model_validate_json(raw)
     result, tags_used = [], 0

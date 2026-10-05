@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -45,10 +46,15 @@ async def stt(
     await file.close()
     if len(content) > 5 * 1024 * 1024 or not content:
         fail("INVALID_AUDIO", "Bản ghi âm trống hoặc quá lớn.", 422)
-    with tempfile.NamedTemporaryFile(suffix=MIMES[mime], dir=request.app.state.settings.data_dir) as temp:
-        temp.write(content)
-        temp.flush()
-        content, duration = await normalize_audio(Path(temp.name), request.app.state.settings.data_dir)
+    fd, name = tempfile.mkstemp(suffix=MIMES[mime], dir=request.app.state.settings.data_dir)
+    source = Path(name)
+    try:
+        # Windows locks an open file against other processes. ffmpeg must see it closed.
+        with os.fdopen(fd, "wb") as temp:
+            temp.write(content)
+        content, duration = await normalize_audio(source, request.app.state.settings.data_dir)
+    finally:
+        source.unlink(missing_ok=True)
     plan, _, _ = await entitlement(db, user.id)
     if duration > plan.quota["recording_seconds"] * 1000:
         fail("INVALID_AUDIO", "Bản ghi âm quá dài.", 422)
