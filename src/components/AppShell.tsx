@@ -4,11 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Compass, LogIn, Menu, Plus, Search, Sparkles, UserRound, X } from "lucide-react";
-import { loadRecent } from "@/lib/chat/client";
+import {
+  Compass,
+  LogIn,
+  Menu,
+  Plus,
+  Search,
+  Sparkles,
+  UserRound,
+  CreditCard,
+  Shield,
+  X,
+} from "lucide-react";
+import { loadRecent, refreshRecent } from "@/lib/chat/client";
 import { useUser } from "@/lib/auth";
 import { useHydrated } from "@/lib/store";
-import { CHARS_EVENT, resolveCharacter } from "@/lib/userCharacters";
+import {
+  CHARS_EVENT,
+  resolveCharacter,
+  useUserChars,
+} from "@/lib/userCharacters";
 import { Portrait } from "./Portrait";
 import { UserAvatar } from "./UserAvatar";
 import { CursorGlow } from "./fx/CursorGlow";
@@ -33,12 +48,18 @@ function useRecent() {
     () => JSON.stringify(loadRecent()),
     () => "[]",
   );
-  return (JSON.parse(raw) as string[]).map(resolveCharacter).filter((c) => c !== undefined);
+  return (JSON.parse(raw) as string[])
+    .map(resolveCharacter)
+    .filter((c) => c !== undefined);
 }
 
 export function Logo({ onClick }: { onClick?: () => void }) {
   return (
-    <Link href="/" onClick={onClick} className="group flex items-center gap-2.5 px-2 text-lg font-bold tracking-tight">
+    <Link
+      href="/"
+      onClick={onClick}
+      className="group flex items-center gap-2.5 px-2 text-lg font-bold tracking-tight"
+    >
       <span className="relative grid size-8 place-items-center">
         <span className="absolute inset-0 rounded-full bg-gradient-to-br from-accent via-violet to-pink opacity-80 blur-md transition-opacity group-hover:opacity-100" />
         <span className="relative size-6 rounded-full bg-gradient-to-br from-white via-accent to-violet shadow-[inset_0_-3px_6px_rgb(0_0_0/0.25)]" />
@@ -52,9 +73,13 @@ export function Logo({ onClick }: { onClick?: () => void }) {
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  useUserChars();
   const recent = useRecent();
   const user = useUser();
   const hydrated = useHydrated();
+  useEffect(() => {
+    void refreshRecent();
+  }, [user?.id]);
 
   const item = (href: string, label: string, Icon: typeof Compass) => {
     const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -74,7 +99,10 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
           />
         )}
-        <Icon className={`relative size-[18px] ${active ? "text-accent" : ""}`} aria-hidden="true" />
+        <Icon
+          className={`relative size-[18px] ${active ? "text-accent" : ""}`}
+          aria-hidden="true"
+        />
         <span className="relative">{label}</span>
       </Link>
     );
@@ -96,10 +124,14 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         {item("/", "Khám phá", Compass)}
         {item("/search", "Tìm kiếm", Search)}
         {user && item("/profile", "Hồ sơ", UserRound)}
+        {item("/billing", "Gói & thanh toán", CreditCard)}
+        {user && user.role !== "user" && item("/admin", "Quản trị", Shield)}
         {item("/welcome", "Giới thiệu", Sparkles)}
       </nav>
       <div className="flex min-h-0 flex-1 flex-col">
-        <h2 className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-fg-3">Gần đây</h2>
+        <h2 className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-fg-3">
+          Gần đây
+        </h2>
         {recent.length === 0 ? (
           <p className="px-3 text-xs text-fg-3">Chưa có cuộc trò chuyện nào.</p>
         ) : (
@@ -132,8 +164,12 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           >
             <UserAvatar name={user.name} hue={user.hue} />
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{user.name}</span>
-              <span className="block truncate text-xs text-fg-3">@{user.username}</span>
+              <span className="block truncate text-sm font-semibold">
+                {user.name}
+              </span>
+              <span className="block truncate text-xs text-fg-3">
+                @{user.username}
+              </span>
             </span>
           </Link>
         ) : (
@@ -142,7 +178,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className="glass flex items-center justify-center gap-2 rounded-2xl p-3 text-sm font-medium transition-transform hover:scale-[1.02]"
           >
-            <LogIn className="size-4 text-accent" aria-hidden="true" /> Đăng nhập / Đăng ký
+            <LogIn className="size-4 text-accent" aria-hidden="true" /> Đăng
+            nhập / Đăng ký
           </Link>
         ))}
       <p className="px-3 text-[11px] leading-relaxed text-fg-3">
@@ -181,7 +218,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Bỏ qua tới nội dung
       </a>
       {/* ambient backdrop */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
+      >
         <div className="absolute -right-40 -top-40 size-[640px] animate-aurora rounded-full bg-accent/10 blur-[140px]" />
         <div className="absolute -bottom-60 left-1/4 size-[560px] animate-aurora rounded-full bg-violet/10 blur-[140px] [animation-delay:-9s]" />
       </div>
@@ -194,7 +234,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/[0.06] bg-sidebar/80 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Logo />
         <div className="flex items-center gap-1">
-          <Link href="/search" aria-label="Tìm kiếm" className="rounded-full p-2 hover:bg-surface">
+          <Link
+            href="/search"
+            aria-label="Tìm kiếm"
+            className="rounded-full p-2 hover:bg-surface"
+          >
             <Search className="size-5" aria-hidden="true" />
           </Link>
           <button
@@ -211,7 +255,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <AnimatePresence>
         {open && (
-          <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div
+            className="fixed inset-0 z-40 lg:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+          >
             <motion.div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               initial={{ opacity: 0 }}

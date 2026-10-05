@@ -4,11 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Compass, Eye, EyeOff, Loader2, Plus, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Compass,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  Sparkles,
+} from "lucide-react";
 import { AuthFrame } from "@/components/auth/AuthFrame";
 import type { MascotMood } from "@/components/Mascot";
 import { UserAvatar } from "@/components/UserAvatar";
-import { emailTaken, isEmail, isUsername, signUp, usernameTaken } from "@/lib/auth";
+import { isEmail, isUsername, signUp } from "@/lib/auth";
 import { fireworks } from "@/lib/confetti";
 import { categories } from "@/lib/data";
 
@@ -81,7 +91,14 @@ export function SignupForm({ next }: { next: string }) {
   const look =
     focus === "email" || focus === "name" || focus === "username"
       ? {
-          x: 0.2 + Math.min((focus === "email" ? email : focus === "name" ? name : username).length, 24) / 24,
+          x:
+            0.2 +
+            Math.min(
+              (focus === "email" ? email : focus === "name" ? name : username)
+                .length,
+              24,
+            ) /
+              24,
           y: 0.7,
         }
       : null;
@@ -110,16 +127,21 @@ export function SignupForm({ next }: { next: string }) {
   const validate = (s: number) => {
     if (s === 0) {
       if (!isEmail(email)) return fail({ email: "Email chưa đúng định dạng." });
-      if (emailTaken(email)) return fail({ email: "Email này đã được đăng ký — thử đăng nhập nhé." });
-      if (password.length < 8) return fail({ password: "Mật khẩu cần ít nhất 8 ký tự." });
-      if (confirm !== password) return fail({ confirm: "Hai mật khẩu chưa khớp nhau." });
+      if (password.length < 8)
+        return fail({ password: "Mật khẩu cần ít nhất 8 ký tự." });
+      if (confirm !== password)
+        return fail({ confirm: "Hai mật khẩu chưa khớp nhau." });
     }
     if (s === 1) {
-      if (name.trim().length < 2) return fail({ name: "Tên hiển thị cần ít nhất 2 ký tự." });
-      if (!isUsername(username)) return fail({ username: "Tên người dùng: 3–20 ký tự a-z, 0-9, _ hoặc ." });
-      if (usernameTaken(username)) return fail({ username: "Tên người dùng này đã có người dùng." });
+      if (name.trim().length < 2)
+        return fail({ name: "Tên hiển thị cần ít nhất 2 ký tự." });
+      if (!isUsername(username))
+        return fail({
+          username: "Tên người dùng: 3–20 ký tự a-z, 0-9, _ hoặc .",
+        });
     }
-    if (s === 2 && interests.length === 0) return fail({ interests: "Chọn ít nhất một thể loại nhé." });
+    if (s === 2 && interests.length === 0)
+      return fail({ interests: "Chọn ít nhất một thể loại nhé." });
     setErrors({});
     return true;
   };
@@ -161,9 +183,19 @@ export function SignupForm({ next }: { next: string }) {
           <motion.div
             initial={{ scale: 0, rotate: -30 }}
             animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 14, delay: 0.1 }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 14,
+              delay: 0.1,
+            }}
           >
-            <UserAvatar name={name} hue={hue} glow className="size-24 text-3xl" />
+            <UserAvatar
+              name={name}
+              hue={hue}
+              glow
+              className="size-24 text-3xl"
+            />
           </motion.div>
           <h1 className="mt-5 text-2xl font-bold sm:text-3xl">
             Tài khoản đã <span className="text-gradient">ra đời</span>!
@@ -188,7 +220,8 @@ export function SignupForm({ next }: { next: string }) {
               href="/create"
               className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 font-medium transition-colors hover:bg-white/5"
             >
-              <Plus className="size-4" aria-hidden="true" /> Tạo nhân vật đầu tiên
+              <Plus className="size-4" aria-hidden="true" /> Tạo nhân vật đầu
+              tiên
             </Link>
           </div>
         </motion.div>
@@ -199,7 +232,10 @@ export function SignupForm({ next }: { next: string }) {
   return (
     <AuthFrame mood={mood} look={look} says={says} shake={shake}>
       {/* progress */}
-      <ol className="mb-6 flex items-center gap-2" aria-label="Các bước đăng ký">
+      <ol
+        className="mb-6 flex items-center gap-2"
+        aria-label="Các bước đăng ký"
+      >
         {STEPS.map((label, i) => (
           <li key={label} className="flex flex-1 flex-col gap-1.5">
             <span className="relative h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -256,7 +292,9 @@ export function SignupForm({ next }: { next: string }) {
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-fg-2">Mật khẩu</span>
+                    <span className="text-sm font-medium text-fg-2">
+                      Mật khẩu
+                    </span>
                     <span className="relative">
                       <input
                         type={show ? "text" : "password"}
@@ -280,28 +318,45 @@ export function SignupForm({ next }: { next: string }) {
                         onClick={() => setShow((v) => !v)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-fg-3 hover:bg-white/5 hover:text-fg"
                       >
-                        {show ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+                        {show ? (
+                          <EyeOff className="size-4" aria-hidden="true" />
+                        ) : (
+                          <Eye className="size-4" aria-hidden="true" />
+                        )}
                       </button>
                     </span>
                     {password && (
-                      <span className="flex items-center gap-2" aria-live="polite">
+                      <span
+                        className="flex items-center gap-2"
+                        aria-live="polite"
+                      >
                         <span className="flex flex-1 gap-1">
                           {[0, 1, 2, 3].map((i) => (
                             <motion.span
                               key={i}
                               className="h-1 flex-1 rounded-full"
-                              animate={{ backgroundColor: i < pwScore ? STRENGTH_COLOR[pwScore] : "rgb(255 255 255 / 0.1)" }}
+                              animate={{
+                                backgroundColor:
+                                  i < pwScore
+                                    ? STRENGTH_COLOR[pwScore]
+                                    : "rgb(255 255 255 / 0.1)",
+                              }}
                             />
                           ))}
                         </span>
-                        <span className="text-[11px] font-medium" style={{ color: STRENGTH_COLOR[pwScore] }}>
+                        <span
+                          className="text-[11px] font-medium"
+                          style={{ color: STRENGTH_COLOR[pwScore] }}
+                        >
                           {STRENGTH[pwScore]}
                         </span>
                       </span>
                     )}
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-fg-2">Nhập lại mật khẩu</span>
+                    <span className="text-sm font-medium text-fg-2">
+                      Nhập lại mật khẩu
+                    </span>
                     <input
                       type={show ? "text" : "password"}
                       autoComplete="new-password"
@@ -323,16 +378,31 @@ export function SignupForm({ next }: { next: string }) {
               {step === 1 && (
                 <>
                   <div className="flex items-center gap-4">
-                    <motion.div key={hue} initial={{ scale: 0.8, rotate: -10 }} animate={{ scale: 1, rotate: 0 }}>
-                      <UserAvatar name={name || "?"} hue={hue} glow className="size-16 text-xl" />
+                    <motion.div
+                      key={hue}
+                      initial={{ scale: 0.8, rotate: -10 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                    >
+                      <UserAvatar
+                        name={name || "?"}
+                        hue={hue}
+                        glow
+                        className="size-16 text-xl"
+                      />
                     </motion.div>
                     <div>
-                      <h1 className="text-2xl font-bold tracking-tight">Hồ sơ của bạn</h1>
-                      <p className="text-sm text-fg-2">Có thể đổi bất cứ lúc nào.</p>
+                      <h1 className="text-2xl font-bold tracking-tight">
+                        Hồ sơ của bạn
+                      </h1>
+                      <p className="text-sm text-fg-2">
+                        Có thể đổi bất cứ lúc nào.
+                      </p>
                     </div>
                   </div>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-fg-2">Tên hiển thị</span>
+                    <span className="text-sm font-medium text-fg-2">
+                      Tên hiển thị
+                    </span>
                     <input
                       autoComplete="nickname"
                       className="field"
@@ -344,15 +414,20 @@ export function SignupForm({ next }: { next: string }) {
                       onBlur={() => setFocus(null)}
                       onChange={(e) => {
                         setName(e.target.value);
-                        if (!userEdited) setUsername(toUsername(e.target.value));
+                        if (!userEdited)
+                          setUsername(toUsername(e.target.value));
                         clear("name");
                       }}
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-fg-2">Tên người dùng</span>
+                    <span className="text-sm font-medium text-fg-2">
+                      Tên người dùng
+                    </span>
                     <span className="relative">
-                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-fg-3">@</span>
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-fg-3">
+                        @
+                      </span>
                       <input
                         autoComplete="username"
                         className="field pl-8"
@@ -371,7 +446,9 @@ export function SignupForm({ next }: { next: string }) {
                     </span>
                   </label>
                   <fieldset className="flex flex-col gap-2">
-                    <legend className="mb-1.5 text-sm font-medium text-fg-2">Màu hào quang</legend>
+                    <legend className="mb-1.5 text-sm font-medium text-fg-2">
+                      Màu hào quang
+                    </legend>
                     <div className="flex gap-2.5">
                       {HUES.map((h) => (
                         <motion.button
@@ -383,13 +460,19 @@ export function SignupForm({ next }: { next: string }) {
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setHue(h)}
                           className="relative size-9 rounded-full"
-                          style={{ background: `linear-gradient(135deg, hsl(${h} 90% 78%), hsl(${(h + 50) % 360} 85% 60%))` }}
+                          style={{
+                            background: `linear-gradient(135deg, hsl(${h} 90% 78%), hsl(${(h + 50) % 360} 85% 60%))`,
+                          }}
                         >
                           {hue === h && (
                             <motion.span
                               layoutId="hue-ring"
                               className="absolute -inset-1 rounded-full border-2 border-white"
-                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 30,
+                              }}
                             />
                           )}
                         </motion.button>
@@ -404,7 +487,9 @@ export function SignupForm({ next }: { next: string }) {
                   <h1 className="text-2xl font-bold tracking-tight">
                     Gu <span className="text-gradient">câu chuyện</span> của bạn
                   </h1>
-                  <p className="-mt-2 text-sm text-fg-2">Chọn vài thể loại để Lumi gợi ý nhân vật hợp ý.</p>
+                  <p className="-mt-2 text-sm text-fg-2">
+                    Chọn vài thể loại để Lumi gợi ý nhân vật hợp ý.
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {categories.map((c) => {
                       const on = interests.includes(c);
@@ -416,7 +501,9 @@ export function SignupForm({ next }: { next: string }) {
                           whileHover={{ y: -2 }}
                           whileTap={{ scale: 0.92 }}
                           onClick={() => {
-                            setInterests((l) => (on ? l.filter((x) => x !== c) : [...l, c]));
+                            setInterests((l) =>
+                              on ? l.filter((x) => x !== c) : [...l, c],
+                            );
                             clear("interests");
                           }}
                           className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
@@ -432,7 +519,10 @@ export function SignupForm({ next }: { next: string }) {
                                 animate={{ width: "auto", opacity: 1 }}
                                 exit={{ width: 0, opacity: 0 }}
                               >
-                                <Check className="size-3.5" aria-hidden="true" />
+                                <Check
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
                               </motion.span>
                             )}
                           </AnimatePresence>
@@ -468,7 +558,9 @@ export function SignupForm({ next }: { next: string }) {
             whileTap={{ scale: 0.97 }}
             className="btn-glow flex flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-3 font-semibold"
           >
-            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+            {busy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : null}
             {step < 2 ? (
               <>
                 Tiếp tục <ArrowRight className="size-4" aria-hidden="true" />
@@ -485,7 +577,9 @@ export function SignupForm({ next }: { next: string }) {
       <p className="mt-6 text-center text-sm text-fg-2">
         Đã có tài khoản?{" "}
         <Link
-          href={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`}
+          href={
+            next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`
+          }
           className="font-semibold text-accent hover:underline"
         >
           Đăng nhập

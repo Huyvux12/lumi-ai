@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
+import { useEffect, useState } from "react";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useTransform,
+} from "motion/react";
 import {
   CalendarDays,
   Loader2,
@@ -20,12 +26,19 @@ import { Portrait } from "@/components/Portrait";
 import { TiltCard } from "@/components/TiltCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Aurora } from "@/components/fx/Aurora";
-import { isUsername, signOut, updateUser, useUser, type User } from "@/lib/auth";
-import { loadHistory, loadRecent } from "@/lib/chat/client";
-import { categories } from "@/lib/data";
-import { subscribeTo, useHydrated } from "@/lib/store";
 import {
-  chatStats,
+  isUsername,
+  signOut,
+  updateUser,
+  useAuthReady,
+  useUser,
+  type User,
+} from "@/lib/auth";
+import { type Conversation } from "@/lib/chat/client";
+import { api } from "@/lib/api";
+import { SecurityPanel } from "@/components/SecurityPanel";
+import { categories } from "@/lib/data";
+import {
   deleteUserChar,
   resolveCharacter,
   useUserChars,
@@ -36,13 +49,12 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 const HUES = [220, 265, 300, 340, 20, 160];
 
 export function ProfileView() {
-  const hydrated = useHydrated();
+  const hydrated = useAuthReady();
   const user = useUser();
   const router = useRouter();
 
   useEffect(() => {
     if (hydrated && !user) {
-      signOut();
       router.replace("/login?next=/profile");
     }
   }, [hydrated, user, router]);
@@ -50,11 +62,14 @@ export function ProfileView() {
   if (!hydrated || !user) {
     return (
       <div className="grid min-h-[70vh] place-items-center">
-        <Loader2 className="size-6 animate-spin text-accent" aria-label="Đang tải" />
+        <Loader2
+          className="size-6 animate-spin text-accent"
+          aria-label="Đang tải"
+        />
       </div>
     );
   }
-  return <Profile user={user} />;
+  return <Profile key={user.id} user={user} />;
 }
 
 function CountUp({ to }: { to: number }) {
@@ -67,33 +82,67 @@ function CountUp({ to }: { to: number }) {
   return <motion.span className="tabular-nums">{text}</motion.span>;
 }
 
-const subRecent = subscribeTo("rb:recent");
-const recentSnap = () => localStorage.getItem("rb:recent") ?? "[]";
-
 function Profile({ user }: { user: User }) {
   const router = useRouter();
-  const mine = useUserChars(user.email);
-  useSyncExternalStore(subRecent, recentSnap, () => "[]");
-  const recent = loadRecent()
-    .map((id) => {
-      const c = resolveCharacter(id);
-      const h = loadHistory(id);
-      return c ? { c, last: h?.[h.length - 1]?.content ?? c.greeting, count: h?.length ?? 0 } : null;
+  const mine = useUserChars(user.id);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [stats, setStats] = useState({ conversations: 0, sent: 0 });
+  const [failure, setFailure] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<Conversation[]>("/conversations")
+      .then((list) => {
+        if (live) setConversations(list);
+      })
+      .catch((e) => {
+        if (live) setFailure(e.message);
+      });
+    api<{ conversations: number; sent: number }>("/me/stats")
+      .then((value) => {
+        if (live) setStats(value);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [user.id]);
+  const recent = conversations
+    .map((item) => {
+      const c = resolveCharacter(item.character_id);
+      return c
+        ? {
+            c,
+            last: "Tiếp tục cuộc trò chuyện đã lưu",
+            conversationId: item.id,
+          }
+        : null;
     })
     .filter((x) => x !== null);
-  const stats = chatStats();
   const [tab, setTab] = useState<"chars" | "chats">("chars");
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState<UserCharacter | null>(null);
-  const joined = new Date(user.createdAt).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+  const joined = new Date(user.createdAt).toLocaleDateString("vi-VN", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="pb-16">
+      <div className="mx-auto max-w-5xl p-4">
+        <SecurityPanel />
+        {failure && (
+          <p role="alert" className="mt-3 text-danger">
+            {failure}
+          </p>
+        )}
+      </div>
       {/* banner */}
       <section className="relative h-56 overflow-hidden sm:h-64">
         <div
           className="absolute inset-0"
-          style={{ background: `linear-gradient(135deg, hsl(${user.hue} 60% 22%), #0b0b12 60%, hsl(${(user.hue + 60) % 360} 50% 18%))` }}
+          style={{
+            background: `linear-gradient(135deg, hsl(${user.hue} 60% 22%), #0b0b12 60%, hsl(${(user.hue + 60) % 360} 50% 18%))`,
+          }}
         />
         <Aurora hue={user.hue} />
         <div className="grain absolute inset-0" />
@@ -116,14 +165,26 @@ function Profile({ user }: { user: User }) {
           transition={{ duration: 0.6, ease: EASE }}
           className="flex flex-col gap-5 sm:flex-row sm:items-end"
         >
-          <motion.div initial={{ scale: 0.6, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 14 }}>
-            <UserAvatar name={user.name} hue={user.hue} glow className="size-32 text-4xl" />
+          <motion.div
+            initial={{ scale: 0.6, rotate: -12 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 14 }}
+          >
+            <UserAvatar
+              name={user.name}
+              hue={user.hue}
+              glow
+              className="size-32 text-4xl"
+            />
           </motion.div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-3xl font-bold tracking-tight sm:text-4xl">{user.name}</h1>
+            <h1 className="truncate text-3xl font-bold tracking-tight sm:text-4xl">
+              {user.name}
+            </h1>
             <p className="text-fg-2">@{user.username}</p>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-fg-3">
-              <CalendarDays className="size-3.5" aria-hidden="true" /> Tham gia {joined}
+              <CalendarDays className="size-3.5" aria-hidden="true" /> Tham gia{" "}
+              {joined}
             </p>
           </div>
           <div className="flex gap-2">
@@ -141,9 +202,12 @@ function Profile({ user }: { user: User }) {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
-                signOut();
-                router.push("/welcome");
-                router.refresh();
+                void signOut()
+                  .then(() => {
+                    router.push("/welcome");
+                    router.refresh();
+                  })
+                  .catch((e) => setFailure(e.message));
               }}
               className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-fg-2 hover:bg-white/5 hover:text-fg"
             >
@@ -152,11 +216,16 @@ function Profile({ user }: { user: User }) {
           </div>
         </motion.div>
 
-        {user.bio && <p className="mt-5 max-w-2xl leading-relaxed text-fg-2">{user.bio}</p>}
+        {user.bio && (
+          <p className="mt-5 max-w-2xl leading-relaxed text-fg-2">{user.bio}</p>
+        )}
         {user.interests.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {user.interests.map((t) => (
-              <span key={t} className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-fg-2">
+              <span
+                key={t}
+                className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-fg-2"
+              >
                 #{t}
               </span>
             ))}
@@ -180,18 +249,25 @@ function Profile({ user }: { user: User }) {
               <div
                 aria-hidden="true"
                 className="absolute -right-6 -top-6 size-20 rounded-full blur-2xl"
-                style={{ background: `hsl(${(user.hue + i * 50) % 360} 90% 60% / 0.35)` }}
+                style={{
+                  background: `hsl(${(user.hue + i * 50) % 360} 90% 60% / 0.35)`,
+                }}
               />
               <p className="relative text-2xl font-bold sm:text-4xl">
                 <CountUp to={n as number} />
               </p>
-              <p className="relative mt-1 text-xs text-fg-2 sm:text-sm">{label}</p>
+              <p className="relative mt-1 text-xs text-fg-2 sm:text-sm">
+                {label}
+              </p>
             </motion.div>
           ))}
         </div>
 
         {/* tabs */}
-        <div role="tablist" className="mt-10 flex gap-1 border-b border-white/10">
+        <div
+          role="tablist"
+          className="mt-10 flex gap-1 border-b border-white/10"
+        >
           {(
             [
               ["chars", `Nhân vật của tôi (${mine.length})`],
@@ -240,7 +316,10 @@ function Profile({ user }: { user: User }) {
                     className="group grid min-h-48 place-items-center rounded-3xl border-2 border-dashed border-white/10 text-fg-2 transition-colors hover:border-accent/50 hover:text-fg"
                   >
                     <span className="flex flex-col items-center gap-2">
-                      <motion.span whileHover={{ rotate: 90 }} className="grid size-12 place-items-center rounded-full bg-white/5 group-hover:bg-accent/20">
+                      <motion.span
+                        whileHover={{ rotate: 90 }}
+                        className="grid size-12 place-items-center rounded-full bg-white/5 group-hover:bg-accent/20"
+                      >
                         <Plus className="size-6" aria-hidden="true" />
                       </motion.span>
                       Tạo nhân vật mới
@@ -254,7 +333,11 @@ function Profile({ user }: { user: User }) {
                         initial={{ opacity: 0, scale: 0.9, y: 16 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, filter: "blur(8px)" }}
-                        transition={{ delay: Math.min(i * 0.05, 0.3), duration: 0.4, ease: EASE }}
+                        transition={{
+                          delay: Math.min(i * 0.05, 0.3),
+                          duration: 0.4,
+                          ease: EASE,
+                        }}
                       >
                         <MyCharCard c={c} onDelete={() => setConfirmDel(c)} />
                       </motion.div>
@@ -263,33 +346,45 @@ function Profile({ user }: { user: User }) {
                 </div>
               )
             ) : recent.length === 0 ? (
-              <Empty text="Chưa có cuộc trò chuyện nào. Chọn một nhân vật và nói lời chào nhé!" cta={{ href: "/", label: "Khám phá nhân vật" }} />
+              <Empty
+                text="Chưa có cuộc trò chuyện nào. Chọn một nhân vật và nói lời chào nhé!"
+                cta={{ href: "/", label: "Khám phá nhân vật" }}
+              />
             ) : (
               <ul className="flex flex-col gap-2">
-                {recent.map(({ c, last, count }, i) => (
+                {recent.map(({ c, last, conversationId }, i) => (
                   <motion.li
-                    key={c.id}
+                    key={conversationId}
                     initial={{ opacity: 0, x: -16 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(i * 0.05, 0.35), duration: 0.4, ease: EASE }}
+                    transition={{
+                      delay: Math.min(i * 0.05, 0.35),
+                      duration: 0.4,
+                      ease: EASE,
+                    }}
                   >
                     <Link
-                      href={`/chat/${c.id}`}
+                      href={`/chat/${c.id}?conversation=${conversationId}`}
                       className="group flex items-center gap-4 rounded-2xl p-3 transition-colors hover:bg-white/[0.05]"
                     >
                       <div
                         className="size-14 shrink-0 overflow-hidden rounded-full ring-2 ring-white/10 transition-transform group-hover:scale-105"
-                        style={{ boxShadow: `0 0 24px -4px hsl(${c.hue} 90% 60% / 0.6)` }}
+                        style={{
+                          boxShadow: `0 0 24px -4px hsl(${c.hue} 90% 60% / 0.6)`,
+                        }}
                       >
-                        <Portrait seed={c.seed ?? c.id} hue={c.hue} className="size-full" />
+                        <Portrait
+                          seed={c.seed ?? c.id}
+                          hue={c.hue}
+                          className="size-full"
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold">{c.name}</p>
-                        <p className="truncate text-sm text-fg-2">{last.replace(/\*/g, "")}</p>
+                        <p className="truncate text-sm text-fg-2">
+                          {last.replace(/\*/g, "")}
+                        </p>
                       </div>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-fg-3">
-                        <MessageCircle className="size-3.5" aria-hidden="true" /> {count}
-                      </span>
                     </Link>
                   </motion.li>
                 ))}
@@ -299,15 +394,18 @@ function Profile({ user }: { user: User }) {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence>{editing && <EditModal user={user} onClose={() => setEditing(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {editing && <EditModal user={user} onClose={() => setEditing(false)} />}
+      </AnimatePresence>
       <AnimatePresence>
         {confirmDel && (
           <Modal onClose={() => setConfirmDel(null)} title="Xoá nhân vật?">
             <div className="flex flex-col items-center gap-3 text-center">
               <Mascot mood="sad" className="size-28" />
               <p className="text-fg-2">
-                <strong className="text-fg">{confirmDel.name}</strong> và toàn bộ lịch sử trò chuyện sẽ biến mất khỏi trình duyệt này.
-                Không thể hoàn tác.
+                <strong className="text-fg">{confirmDel.name}</strong> và toàn
+                bộ lịch sử trò chuyện sẽ biến mất khỏi trình duyệt này. Không
+                thể hoàn tác.
               </p>
               <div className="mt-2 flex w-full gap-2">
                 <button
@@ -320,9 +418,17 @@ function Profile({ user }: { user: User }) {
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    deleteUserChar(confirmDel.id);
-                    setConfirmDel(null);
+                  onClick={async () => {
+                    try {
+                      await deleteUserChar(confirmDel.id);
+                      setConfirmDel(null);
+                    } catch (e) {
+                      setFailure(
+                        e instanceof Error
+                          ? e.message
+                          : "Không thể xóa nhân vật.",
+                      );
+                    }
                   }}
                   className="flex-1 rounded-xl bg-danger py-2.5 text-sm font-semibold text-black"
                 >
@@ -337,15 +443,26 @@ function Profile({ user }: { user: User }) {
   );
 }
 
-function MyCharCard({ c, onDelete }: { c: UserCharacter; onDelete: () => void }) {
+function MyCharCard({
+  c,
+  onDelete,
+}: {
+  c: UserCharacter;
+  onDelete: () => void;
+}) {
   return (
     <TiltCard hue={c.hue} max={8}>
       <div
         className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 p-4"
-        style={{ background: `linear-gradient(160deg, hsl(${c.hue} 40% 17%), #121218 75%)` }}
+        style={{
+          background: `linear-gradient(160deg, hsl(${c.hue} 40% 17%), #121218 75%)`,
+        }}
       >
         <Link href={`/character/${c.id}`} className="flex gap-3">
-          <div className="size-16 shrink-0 overflow-hidden rounded-2xl" style={{ boxShadow: `0 8px 24px -6px hsl(${c.hue} 90% 55% / 0.6)` }}>
+          <div
+            className="size-16 shrink-0 overflow-hidden rounded-2xl"
+            style={{ boxShadow: `0 8px 24px -6px hsl(${c.hue} 90% 55% / 0.6)` }}
+          >
             <Portrait seed={c.seed ?? c.id} hue={c.hue} className="size-full" />
           </div>
           <div className="min-w-0">
@@ -355,7 +472,10 @@ function MyCharCard({ c, onDelete }: { c: UserCharacter; onDelete: () => void })
         </Link>
         <div className="mt-3 flex flex-wrap gap-1">
           {c.tags.map((t) => (
-            <span key={t} className="rounded-full bg-white/10 px-2 py-0.5 text-[11px]">
+            <span
+              key={t}
+              className="rounded-full bg-white/10 px-2 py-0.5 text-[11px]"
+            >
               {t}
             </span>
           ))}
@@ -388,19 +508,36 @@ function MyCharCard({ c, onDelete }: { c: UserCharacter; onDelete: () => void })
   );
 }
 
-function Empty({ text, cta }: { text: string; cta: { href: string; label: string } }) {
+function Empty({
+  text,
+  cta,
+}: {
+  text: string;
+  cta: { href: string; label: string };
+}) {
   return (
     <div className="flex flex-col items-center gap-4 py-10 text-center">
       <Mascot mood="peek" className="size-36 animate-float" />
       <p className="max-w-sm text-fg-2">{text}</p>
-      <Link href={cta.href} className="btn-glow flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold">
+      <Link
+        href={cta.href}
+        className="btn-glow flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
+      >
         <Sparkles className="size-4" aria-hidden="true" /> {cta.label}
       </Link>
     </div>
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -427,7 +564,12 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Đóng" className="grid size-8 place-items-center rounded-full hover:bg-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="grid size-8 place-items-center rounded-full hover:bg-white/10"
+          >
             <X className="size-4" aria-hidden="true" />
           </button>
         </div>
@@ -446,12 +588,19 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return setErr("Tên cần ít nhất 2 ký tự.");
-    if (!isUsername(username)) return setErr("Tên người dùng: 3–20 ký tự a-z, 0-9, _ hoặc .");
+    if (!isUsername(username))
+      return setErr("Tên người dùng: 3–20 ký tự a-z, 0-9, _ hoặc .");
     try {
-      updateUser({ name: name.trim(), username, bio: bio.trim().slice(0, 200), hue, interests });
+      await updateUser({
+        name: name.trim(),
+        username,
+        bio: bio.trim().slice(0, 200),
+        hue,
+        interests,
+      });
       setSaved(true);
       setTimeout(onClose, 700);
     } catch (x) {
@@ -463,11 +612,25 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
     <Modal title="Chỉnh sửa hồ sơ" onClose={onClose}>
       <form onSubmit={save} className="flex flex-col gap-4">
         <div className="flex justify-center">
-          <motion.div key={hue + name} initial={{ scale: 0.85 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 15 }}>
-            <UserAvatar name={name || "?"} hue={hue} glow className="size-20 text-2xl" />
+          <motion.div
+            key={hue + name}
+            initial={{ scale: 0.85 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+          >
+            <UserAvatar
+              name={name || "?"}
+              hue={hue}
+              glow
+              className="size-20 text-2xl"
+            />
           </motion.div>
         </div>
-        <div className="flex justify-center gap-2" role="radiogroup" aria-label="Màu hồ sơ">
+        <div
+          className="flex justify-center gap-2"
+          role="radiogroup"
+          aria-label="Màu hồ sơ"
+        >
           {HUES.map((h) => (
             <button
               key={h}
@@ -477,33 +640,59 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
               aria-label={`Màu ${h}`}
               onClick={() => setHue(h)}
               className="relative size-8 rounded-full"
-              style={{ background: `linear-gradient(135deg, hsl(${h} 90% 78%), hsl(${(h + 50) % 360} 85% 62%))` }}
+              style={{
+                background: `linear-gradient(135deg, hsl(${h} 90% 78%), hsl(${(h + 50) % 360} 85% 62%))`,
+              }}
             >
-              {hue === h && <motion.span layoutId="edit-hue" className="absolute -inset-1 rounded-full ring-2 ring-white" />}
+              {hue === h && (
+                <motion.span
+                  layoutId="edit-hue"
+                  className="absolute -inset-1 rounded-full ring-2 ring-white"
+                />
+              )}
             </button>
           ))}
         </div>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-fg-2">
           Tên hiển thị
-          <input className="field" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="field"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+          />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-fg-2">
           Tên người dùng
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-3">@</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-3">
+              @
+            </span>
             <input
               className="field pl-8"
               value={username}
               maxLength={20}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ""))}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ""),
+                )
+              }
             />
           </div>
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-fg-2">
           <span className="flex justify-between">
-            Giới thiệu <span className="text-xs text-fg-3">{bio.length}/200</span>
+            Giới thiệu{" "}
+            <span className="text-xs text-fg-3">{bio.length}/200</span>
           </span>
-          <textarea className="field resize-none" rows={3} maxLength={200} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Vài dòng về bạn…" />
+          <textarea
+            className="field resize-none"
+            rows={3}
+            maxLength={200}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Vài dòng về bạn…"
+          />
         </label>
         <div className="flex flex-wrap gap-1.5">
           {categories.map((t) => {
@@ -514,7 +703,11 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
                 type="button"
                 aria-pressed={on}
                 whileTap={{ scale: 0.92 }}
-                onClick={() => setInterests(on ? interests.filter((x) => x !== t) : [...interests, t])}
+                onClick={() =>
+                  setInterests(
+                    on ? interests.filter((x) => x !== t) : [...interests, t],
+                  )
+                }
                 className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-accent/60 bg-accent/20" : "border-white/10 text-fg-2"}`}
               >
                 {t}

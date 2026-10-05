@@ -1,4 +1,4 @@
-// Tiny localStorage-backed stores shared by auth, user characters and chat history.
+// Local browser helpers for non-authoritative draft and cosmetic state.
 // Everything here is per-browser demo state: no server, no real accounts.
 
 import { useSyncExternalStore } from "react";

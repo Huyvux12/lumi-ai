@@ -1,43 +1,74 @@
 "use client";
-
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
-import { useUser } from "@/lib/auth";
-import { useHydrated } from "@/lib/store";
-import { useUserChars } from "@/lib/userCharacters";
+import { useEffect, useState } from "react";
+import { useAuthReady, useUser } from "@/lib/auth";
+import { fetchCharacter, type UserCharacter } from "@/lib/userCharacters";
+import { api } from "@/lib/api";
+import type { Scene } from "@/lib/data";
 import { CharacterProfile } from "./CharacterProfile";
 import { ChatView } from "./ChatView";
-import { Mascot } from "./Mascot";
-
-/** Characters created in this browser only exist client-side, so their routes resolve here. */
-export function UserCharacterRoute({ id, view }: { id: string; view: "profile" | "chat" }) {
-  const hydrated = useHydrated();
-  const chars = useUserChars();
+type Props = {
+  id: string;
+  view: "profile" | "chat";
+  sceneId?: string;
+  conversationId?: string;
+};
+export function UserCharacterRoute(props: Props) {
   const user = useUser();
-  const c = chars.find((x) => x.id === id);
-
-  if (!hydrated) {
+  return (
+    <ResolvedCharacter
+      key={`${props.id}:${props.sceneId ?? ""}:${props.conversationId ?? ""}:${user?.id ?? "guest"}`}
+      {...props}
+    />
+  );
+}
+function ResolvedCharacter({ id, view, sceneId, conversationId }: Props) {
+  const user = useUser();
+  const ready = useAuthReady();
+  const [scene, setScene] = useState<Scene | undefined>(undefined);
+  const [c, setC] = useState<UserCharacter | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!ready) return;
+    let live = true;
+    Promise.all([
+      fetchCharacter(id),
+      sceneId
+        ? api<Scene>(`/scenes/${encodeURIComponent(sceneId)}`)
+        : Promise.resolve(undefined),
+    ])
+      .then(([c, s]) => {
+        if (live) {
+          setC(c);
+          setScene(s);
+        }
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, ready, user?.id, sceneId]);
+  if (error)
     return (
-      <div className="grid min-h-[70vh] place-items-center">
-        <Loader2 className="size-6 animate-spin text-accent" aria-label="Đang tải" />
-      </div>
-    );
-  }
-  if (!c) {
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-24 text-center">
-        <Mascot mood="sad" className="size-40" />
-        <h1 className="text-2xl font-bold">Nhân vật này đã lạc mất</h1>
-        <p className="text-fg-2">Nhân vật do người dùng tạo chỉ được lưu trên trình duyệt đã tạo ra nó.</p>
-        <Link href="/" className="btn-glow rounded-full px-5 py-2.5 text-sm font-semibold">
-          Về trang Khám phá
+      <div className="p-10 text-center">
+        <p role="alert">{error}</p>
+        <Link href="/" className="text-accent">
+          Về Khám phá
         </Link>
       </div>
     );
-  }
+  if (!c)
+    return <p className="p-10 text-center text-fg-2">Đang tải nhân vật…</p>;
   return view === "chat" ? (
-    <ChatView key={id} character={c} />
+    <ChatView
+      key={id}
+      character={c}
+      scene={scene}
+      initialConversationId={conversationId}
+    />
   ) : (
-    <CharacterProfile character={c} editable={user?.email === c.owner} />
+    <CharacterProfile character={c} editable={user?.id === c.owner} />
   );
 }

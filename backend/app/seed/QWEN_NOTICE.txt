@@ -1,0 +1,5 @@
+The unmodified qwen-tokenizer.json is from Qwen/Qwen3.8-27B:
+https://huggingface.co/Qwen/Qwen3.8-27B/blob/72a217a/tokenizer.json
+SHA256: 0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3
+The upstream model declares Apache-2.0. QWEN_LICENSE.txt contains its upstream license.
+This notice applies to the bundled tokenizer; it does not assign a license to the Lumi repository.

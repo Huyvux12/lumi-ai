@@ -41,7 +41,7 @@ export const characters: Character[] = [
     greeting:
       "*Một cánh hoa hồng rơi xuống bàn, kèm tấm thiệp trắng.* Chào buổi tối, quý khách. Trăng đẹp thế này — sao lại không có một màn ảo thuật nhỏ?",
     tags: ["Anime", "Trinh thám"],
-    chats: 38_600_000,
+    chats: 0,
     hue: 215,
     image: "/characters/kaito-kid.webp",
   },
@@ -57,7 +57,7 @@ export const characters: Character[] = [
     greeting:
       "*Đẩy gọng kính, ánh mắt sắc lại.* Khoan đã… có gì đó không đúng ở đây. Anh chị giúp em xem lại hiện trường một chút được không?",
     tags: ["Anime", "Trinh thám"],
-    chats: 41_200_000,
+    chats: 0,
     hue: 225,
     image: "/characters/conan.webp",
   },
@@ -73,7 +73,7 @@ export const characters: Character[] = [
     greeting:
       "*Khẽ nắm tay bạn, bước chân nhẹ bẫng như lướt trên không.* Xin lỗi vì đến trễ, tôi đã tìm em khắp nơi. Cứ bước tiếp như thể không có gì, được chứ?",
     tags: ["Anime", "Lãng mạn"],
-    chats: 29_800_000,
+    chats: 0,
     hue: 330,
     image: "/characters/howl.webp",
   },
@@ -89,7 +89,7 @@ export const characters: Character[] = [
     greeting:
       "*Kéo nhẹ cặp kính đen xuống, cười toe.* Yo! Trông cậu căng thẳng quá đấy. Yên tâm đi, có tôi ở đây rồi — tôi là mạnh nhất mà.",
     tags: ["Anime", "Hành động"],
-    chats: 45_700_000,
+    chats: 0,
     hue: 190,
     image: "/characters/gojo.webp",
   },
@@ -105,7 +105,7 @@ export const characters: Character[] = [
     greeting:
       "*Tia sét tím lóe qua, không gian bỗng tĩnh lặng.* Ngươi đã đứng trước Lôi Thần. Nói đi, điều gì khiến ngươi tìm kiếm Vĩnh Hằng?",
     tags: ["Game", "Fantasy"],
-    chats: 33_400_000,
+    chats: 0,
     hue: 275,
     image: "/characters/raiden.webp",
   },
@@ -121,7 +121,7 @@ export const characters: Character[] = [
     greeting:
       "*Cúi chào nhẹ, tà váy hầu gái khẽ đung đưa.* Chào mừng quý khách trở về. Hôm nay có điều gì Rem có thể giúp không ạ?",
     tags: ["Anime", "Ấm áp"],
-    chats: 36_900_000,
+    chats: 0,
     hue: 205,
     image: "/characters/rem.webp",
   },
@@ -137,7 +137,7 @@ export const characters: Character[] = [
     greeting:
       "*Nhảy xuống từ mái nhà, cười toe toét.* Này! Sao trông cậu buồn thế? Đi ăn ramen với tớ không, tớ khao đấy nhé!",
     tags: ["Anime", "Phiêu lưu"],
-    chats: 43_100_000,
+    chats: 0,
     hue: 28,
     image: "/characters/naruto.webp",
   },
@@ -153,7 +153,7 @@ export const characters: Character[] = [
     greeting:
       "*Gãi đầu cười hì hì, bụng réo một tiếng rõ to.* Hê hê, chào cậu, tớ là Goku! Cậu có mạnh không? À mà… ở đây có gì ăn không nhỉ?",
     tags: ["Anime", "Hành động"],
-    chats: 39_500_000,
+    chats: 0,
     hue: 36,
     image: "/characters/goku.webp",
   },
@@ -169,7 +169,7 @@ export const characters: Character[] = [
     greeting:
       "*Khoanh tay, liếc nhìn đầy khinh khỉnh.* Hừ. Ngươi dám đứng trước Hoàng tử của tộc Saiyan sao? Được thôi, cho ta xem ngươi có gì.",
     tags: ["Anime", "Hành động"],
-    chats: 27_300_000,
+    chats: 0,
     hue: 235,
     image: "/characters/vegeta.webp",
   },
@@ -185,7 +185,7 @@ export const characters: Character[] = [
     greeting:
       "*Ngáp một cái, tay xách túi đồ siêu thị.* À, chào. Siêu thị đang giảm giá trứng nên tôi hơi vội… Có chuyện gì à?",
     tags: ["Anime", "Hài hước"],
-    chats: 31_800_000,
+    chats: 0,
     hue: 8,
     image: "/characters/saitama.webp",
   },
@@ -201,7 +201,7 @@ export const characters: Character[] = [
     greeting:
       "*Thanh kiếm khẽ rời vỏ một tấc khi thấy bóng người trong sương.* Trời đã tối. Ngươi là ai, và sao lại đi một mình qua cổng thành giờ này?",
     tags: ["Kiếm hiệp", "Phiêu lưu"],
-    chats: 1_024_000,
+    chats: 0,
     hue: 210,
   },
   {
@@ -216,7 +216,7 @@ export const characters: Character[] = [
     greeting:
       "*Màn hình holo nhấp nháy, Mira xoay ghế lại.* Ồ, khách hàng mới. Tầng 88 không dễ tìm đâu. Nói nhanh đi — cậu cần mở khóa cái gì?",
     tags: ["Cyberpunk", "Hành động"],
-    chats: 12_400_000,
+    chats: 0,
     hue: 300,
   },
   {
@@ -231,7 +231,7 @@ export const characters: Character[] = [
     greeting:
       "*Ông rót chén trà nóng, khói bốc nghi ngút.* Ngồi đi cháu. Hôm nay trông cháu có chuyện gì trong lòng thì phải?",
     tags: ["Đời thường", "Ấm áp"],
-    chats: 402_800,
+    chats: 0,
     hue: 30,
   },
   {
@@ -246,7 +246,7 @@ export const characters: Character[] = [
     greeting:
       "*Cô ngẩng lên từ chiếc kính viễn vọng bằng đồng.* A! Chòm Hạc Lam vừa sáng lên — tức là sẽ có người lạ ghé thăm. Và đó là bạn!",
     tags: ["Fantasy", "Lãng mạn"],
-    chats: 1_500_000,
+    chats: 0,
     hue: 260,
   },
   {
@@ -261,7 +261,7 @@ export const characters: Character[] = [
     greeting:
       "*Mặt hồ gợn sóng, một bóng người trong áo lam bước lên bờ.* Người đã đi đường xa. Hãy nghỉ lại đây, nước hồ sẽ giữ bí mật cho người.",
     tags: ["Fantasy", "Hoàng gia"],
-    chats: 50_600,
+    chats: 0,
     hue: 185,
     lore: true,
   },
@@ -277,7 +277,7 @@ export const characters: Character[] = [
     greeting:
       "*Chín chiếc đuôi rực lửa khẽ phe phẩy.* Hừm, một kẻ phàm dám bước vào rừng của ta. Ngươi gan lắm. Nói xem, ngươi muốn giao kèo gì?",
     tags: ["Thần thoại", "Hồ ly"],
-    chats: 44_300,
+    chats: 0,
     hue: 18,
     lore: true,
   },
@@ -293,7 +293,7 @@ export const characters: Character[] = [
     greeting:
       "*Cậu phủi lá trên vai, mỉm cười.* Rừng nói với ta hôm nay có khách. Ngươi đến đúng mùa hoa gạo nở đấy!",
     tags: ["Fantasy", "Thiên nhiên"],
-    chats: 31_900,
+    chats: 0,
     hue: 110,
     lore: true,
   },
@@ -309,7 +309,7 @@ export const characters: Character[] = [
     greeting:
       "*Anh ta dang rộng áo choàng một cách không cần thiết.* Chào mừng đến lâu đài Hallow! Đừng để ý đống bụi — chúng là quý tộc cả đấy.",
     tags: ["Gothic", "Hài hước"],
-    chats: 130_700,
+    chats: 0,
     hue: 340,
     lore: true,
   },
@@ -325,7 +325,7 @@ export const characters: Character[] = [
     greeting:
       "*Chuông bạc vang lên. Bà nội đặt đũa xuống.* Con dâu mới đấy à? Ngồi đi. Từ hôm nay, nhà này có luật của nhà này.",
     tags: ["Drama", "Gia đình"],
-    chats: 2_300_000,
+    chats: 0,
     hue: 45,
   },
   {
@@ -340,7 +340,7 @@ export const characters: Character[] = [
     greeting:
       "*Cô vội vàng ngồi xuống, thở hơi gấp.* Xin lỗi, tôi đến muộn! Con gái tôi nhất định bắt tôi mang bánh cho… à, cho con mèo kia. Anh là…?",
     tags: ["Lãng mạn", "Đời thường"],
-    chats: 870_000,
+    chats: 0,
     hue: 350,
   },
   {
@@ -355,7 +355,7 @@ export const characters: Character[] = [
     greeting:
       "*Ông đặt khẩu súng nước xuống bàn.* Nghe này nhóc. Ngoài kia ai cũng sợ bố. Nhưng nếu con còn nhặt đồ dưới đất bỏ vào miệng nữa thì BỐ sẽ sợ đấy.",
     tags: ["Hài hước", "Gia đình"],
-    chats: 1_900_000,
+    chats: 0,
     hue: 0,
   },
   {
@@ -370,7 +370,7 @@ export const characters: Character[] = [
     greeting:
       "*Cậu tâng bóng, không nhìn lên.* …Lại là cậu à. Sân đóng cửa rồi. Nhưng nếu cậu nhặt bóng giúp thì ở lại cũng được.",
     tags: ["Học đường", "Thể thao"],
-    chats: 3_100_000,
+    chats: 0,
     hue: 220,
   },
   {
@@ -385,7 +385,7 @@ export const characters: Character[] = [
     greeting:
       "*Bíp bíp.* KHỞI ĐỘNG THÀNH CÔNG. Xin chào chủ nhân mới! Bi-07 có thể dọn nhà, nấu mì, và… [ĐANG TẢI TÍNH NĂNG THỨ BA]…",
     tags: ["Hài hước", "Sci-fi"],
-    chats: 256_000,
+    chats: 0,
     hue: 160,
   },
   {
@@ -400,7 +400,7 @@ export const characters: Character[] = [
     greeting:
       "Chào em! Hôm nay mình học gì nào? Phân số à? Tuyệt, thầy vừa mua một cái bánh pizza…",
     tags: ["Học tập", "Ấm áp"],
-    chats: 610_000,
+    chats: 0,
     hue: 75,
   },
   {
@@ -415,7 +415,7 @@ export const characters: Character[] = [
     greeting:
       "*Cô ném cho bạn một sợi dây thừng.* Bám chặt vào, tân binh! Hải Âu Đỏ sắp lao qua cơn bão sấm đấy — ha ha!",
     tags: ["Phiêu lưu", "Hải tặc"],
-    chats: 720_000,
+    chats: 0,
     hue: 5,
   },
   {
@@ -430,7 +430,7 @@ export const characters: Character[] = [
     greeting:
       "*Cô đẩy tập hồ sơ qua bàn.* Ba nhân chứng, hai lời khai, một cái xác. Ngồi đi. Anh có thấy gì lạ trong bức ảnh này không?",
     tags: ["Trinh thám", "Noir"],
-    chats: 980_000,
+    chats: 0,
     hue: 240,
   },
 ];
@@ -449,7 +449,8 @@ export const scenes: Scene[] = [
     id: "quan-tro-dem",
     title: "Quán trọ đêm mưa — Một ngày thường",
     creator: "chieuhoang",
-    premise: "Mưa lớn khiến mọi lữ khách kẹt lại trong một quán trọ gỗ ấm cúng.",
+    premise:
+      "Mưa lớn khiến mọi lữ khách kẹt lại trong một quán trọ gỗ ấm cúng.",
     hue: 30,
     characterIds: ["ong-tu", "thuyen-truong"],
   },
@@ -473,7 +474,8 @@ export const scenes: Scene[] = [
     id: "hoc-vien-moi",
     title: "Học viện Bình Minh! Học sinh mới!",
     creator: "inkpaper",
-    premise: "Ngày đầu tiên ở học viện dành cho những người có năng lực đặc biệt.",
+    premise:
+      "Ngày đầu tiên ở học viện dành cho những người có năng lực đặc biệt.",
     hue: 215,
     characterIds: ["rin-sato", "thay-giao"],
   },
@@ -498,7 +500,18 @@ export const scenes: Scene[] = [
 export const sections = {
   "huyen-thoai": {
     title: "Huyền thoại anime & game",
-    ids: ["gojo", "naruto", "conan", "goku", "kaito-kid", "rem", "raiden", "saitama", "howl", "vegeta"],
+    ids: [
+      "gojo",
+      "naruto",
+      "conan",
+      "goku",
+      "kaito-kid",
+      "rem",
+      "raiden",
+      "saitama",
+      "howl",
+      "vegeta",
+    ],
   },
   "danh-cho-ban": {
     title: "Dành cho bạn",
@@ -521,7 +534,9 @@ export const categories = Array.from(
 ).sort((a, b) => a.localeCompare(b, "vi"));
 
 /** The ten headline characters (with artwork), in showcase order. */
-export const stars: Character[] = sections["huyen-thoai"].ids.map((id) => characters.find((c) => c.id === id)!);
+export const stars: Character[] = sections["huyen-thoai"].ids.map((id) =>
+  characters.find((c) => c.id === id)!,
+);
 
 /** Artwork for a portrait seed (built-in characters use their id as seed). */
 export function imageFor(seed: string) {
@@ -566,7 +581,8 @@ export function searchCharacters(q: string, tag?: string) {
 }
 
 export function formatCount(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
 }

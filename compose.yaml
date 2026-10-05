@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lumi
+      POSTGRES_DB: lumi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U lumi -d lumi]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  redis:
+    image: redis:8-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  backend:
+    build: ./backend
+    env_file: .env.backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lumi:${POSTGRES_PASSWORD}@postgres:5432/lumi
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      AUTO_MIGRATE: "false"
+    volumes: [backend_data:/data]
+    ports: [127.0.0.1:8000:8000]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+  frontend:
+    build: .
+    ports: [127.0.0.1:3000:3000]
+    depends_on: [backend]
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  redis_data:
+  backend_data:

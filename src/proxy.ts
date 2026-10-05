@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Optimistic routing only: the demo account itself lives in localStorage, so
-// client pages re-check and recover if the cookie and storage disagree.
+// Optimistic navigation only. Python validates the session and permissions for every protected API.
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const session = request.cookies.has("rb_session");
+  const session = request.cookies.has("lumi_session");
   const guest = request.cookies.has("rb_guest");
 
   // First visit lands on the cinematic welcome page.
@@ -16,10 +15,6 @@ export function proxy(request: NextRequest) {
     const url = new URL("/login", request.url);
     url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
-  }
-
-  if ((pathname === "/login" || pathname === "/signup") && session) {
-    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

@@ -15,6 +15,7 @@ type Focus = "email" | "password" | null;
 export function LoginForm({ next }: { next: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [focus, setFocus] = useState<Focus>(null);
@@ -32,7 +33,10 @@ export function LoginForm({ next }: { next: string }) {
           ? "peek"
           : "cover"
         : "idle";
-  const look = focus === "email" ? { x: 0.2 + Math.min(email.length, 28) / 28, y: 0.7 } : null;
+  const look =
+    focus === "email"
+      ? { x: 0.2 + Math.min(email.length, 28) / 28, y: 0.7 }
+      : null;
   const says = done
     ? "Yay! Chào mừng trở lại ✨"
     : error
@@ -57,7 +61,7 @@ export function LoginForm({ next }: { next: string }) {
     if (!password) return fail("Bạn quên nhập mật khẩu kìa.");
     setBusy(true);
     try {
-      await signIn(email, password);
+      await signIn(email, password, totpCode || undefined);
       setError(null);
       setDone(true);
       burst(0.72, 0.45);
@@ -77,7 +81,9 @@ export function LoginForm({ next }: { next: string }) {
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
         Chào mừng <span className="text-gradient">trở lại</span>
       </h1>
-      <p className="mt-1.5 text-sm text-fg-2">Đăng nhập để tiếp tục những câu chuyện dang dở.</p>
+      <p className="mt-1.5 text-sm text-fg-2">
+        Đăng nhập để tiếp tục những câu chuyện dang dở.
+      </p>
 
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
@@ -125,11 +131,29 @@ export function LoginForm({ next }: { next: string }) {
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-fg-3 transition-colors hover:bg-white/5 hover:text-fg"
             >
-              {show ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              {show ? (
+                <EyeOff className="size-4" aria-hidden="true" />
+              ) : (
+                <Eye className="size-4" aria-hidden="true" />
+              )}
             </button>
           </span>
         </label>
 
+        <label className="flex flex-col gap-1.5 text-sm text-fg-2">
+          Mã MFA (nếu đã bật)
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+            className="field"
+          />
+        </label>
+        <Link href="/forgot-password" className="text-sm text-accent">
+          Quên mật khẩu?
+        </Link>
         <motion.button
           type="submit"
           disabled={busy || done}
@@ -149,7 +173,11 @@ export function LoginForm({ next }: { next: string }) {
       <p className="mt-6 text-center text-sm text-fg-2">
         Chưa có tài khoản?{" "}
         <Link
-          href={next === "/" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`}
+          href={
+            next === "/"
+              ? "/signup"
+              : `/signup?next=${encodeURIComponent(next)}`
+          }
           className="font-semibold text-accent hover:underline"
         >
           Đăng ký miễn phí

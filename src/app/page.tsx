@@ -3,11 +3,11 @@ import { CharacterRail } from "@/components/CharacterRail";
 import { HomeHero } from "@/components/HomeHero";
 import { MyCharactersRail } from "@/components/MyCharactersRail";
 import { PageFade } from "@/components/PageFade";
-import { SceneCarousel } from "@/components/SceneCarousel";
+import { LiveScenes, CommunityRail } from "@/components/CatalogResults";
 import { SearchBar } from "@/components/SearchBar";
 import { StarPicker } from "@/components/StarPicker";
 import { Reveal } from "@/components/fx/Reveal";
-import { getSection, scenes, stars } from "@/lib/data";
+import { getSection, stars } from "@/lib/data";
 
 export default function Home() {
   const forYou = getSection("danh-cho-ban")!;
@@ -23,17 +23,33 @@ export default function Home() {
         <CategoryChips />
       </div>
       <MyCharactersRail />
+      <CommunityRail />
       <Reveal>
-        <CharacterRail id="for-you" title={forYou.title} href="/section/danh-cho-ban" characters={forYou.characters} />
+        <CharacterRail
+          id="for-you"
+          title={forYou.title}
+          href="/section/danh-cho-ban"
+          characters={forYou.characters}
+        />
       </Reveal>
       <Reveal>
-        <SceneCarousel scenes={scenes} />
+        <LiveScenes />
       </Reveal>
       <Reveal>
-        <CharacterRail id="featured" title={featured.title} href="/section/noi-bat" characters={featured.characters} />
+        <CharacterRail
+          id="featured"
+          title={featured.title}
+          href="/section/noi-bat"
+          characters={featured.characters}
+        />
       </Reveal>
       <Reveal>
-        <CharacterRail id="popular" title={popular.title} href="/section/pho-bien" characters={popular.characters} />
+        <CharacterRail
+          id="popular"
+          title={popular.title}
+          href="/section/pho-bien"
+          characters={popular.characters}
+        />
       </Reveal>
     </PageFade>
   );
