@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { api, mutation } from "@/lib/api";
 import { refreshUser, useUser } from "@/lib/auth";
-export function SecurityPanel({ compact = false }: { compact?: boolean }) {
+export function SecurityPanel() {
   const user = useUser();
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -22,10 +22,7 @@ export function SecurityPanel({ compact = false }: { compact?: boolean }) {
     }
   }
   return (
-    <details
-      className="glass rounded-2xl p-5"
-      open={compact && !user.mfa_enabled}
-    >
+    <details className="glass rounded-2xl p-5">
       <summary className="cursor-pointer font-semibold">
         Bảo mật tài khoản {user.mfa_enabled ? "· MFA đã bật" : ""}
       </summary>
@@ -64,8 +61,8 @@ export function SecurityPanel({ compact = false }: { compact?: boolean }) {
             }}
           >
             <p className="mb-2 text-fg-2">
-              Thêm xác thực 2 bước bằng ứng dụng Authenticator. MFA bắt buộc cho
-              quản trị ở môi trường chính thức.
+              Thêm xác thực 2 bước bằng ứng dụng Authenticator. Trên máy local
+              có thể bỏ qua. MFA chỉ bắt buộc khi chạy production.
             </p>
             <label>
               Mật khẩu hiện tại

@@ -8,6 +8,7 @@ import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { AuthFrame } from "@/components/auth/AuthFrame";
 import type { MascotMood } from "@/components/Mascot";
 import { isEmail, signIn } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 import { burst } from "@/lib/confetti";
 
 type Focus = "email" | "password" | null;
@@ -23,6 +24,7 @@ export function LoginForm({ next }: { next: string }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [shake, setShake] = useState(0);
+  const [needsMfa, setNeedsMfa] = useState(false);
 
   const mood: MascotMood = done
     ? "happy"
@@ -59,9 +61,11 @@ export function LoginForm({ next }: { next: string }) {
     if (busy || done) return;
     if (!isEmail(email)) return fail("Email chưa đúng định dạng rồi.");
     if (!password) return fail("Bạn quên nhập mật khẩu kìa.");
+    if (needsMfa && !/^\d{6}$/.test(totpCode))
+      return fail("Nhập mã 6 số từ ứng dụng Authenticator.");
     setBusy(true);
     try {
-      await signIn(email, password, totpCode || undefined);
+      await signIn(email, password, needsMfa ? totpCode : undefined);
       setError(null);
       setDone(true);
       burst(0.72, 0.45);
@@ -70,6 +74,8 @@ export function LoginForm({ next }: { next: string }) {
         router.refresh();
       }, 1300);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "MFA_REQUIRED")
+        setNeedsMfa(true);
       fail(err instanceof Error ? err.message : "Có lỗi xảy ra.");
     } finally {
       setBusy(false);
@@ -140,17 +146,19 @@ export function LoginForm({ next }: { next: string }) {
           </span>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm text-fg-2">
-          Mã MFA (nếu đã bật)
-          <input
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
-            className="field"
-          />
-        </label>
+        {needsMfa && (
+          <label className="flex flex-col gap-1.5 text-sm text-fg-2">
+            Mã 6 số
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+              className="field"
+            />
+          </label>
+        )}
         <Link href="/forgot-password" className="text-sm text-accent">
           Quên mật khẩu?
         </Link>

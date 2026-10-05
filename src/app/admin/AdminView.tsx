@@ -213,7 +213,7 @@ function AdminAccount() {
           {user.role} · @{user.username}
         </span>
       </div>
-      <SecurityPanel compact />
+      <SecurityPanel />
       <nav aria-label="Trang quản trị" className="my-6 flex flex-wrap gap-2">
         {tabs.map(([id, label]) => (
           <button
