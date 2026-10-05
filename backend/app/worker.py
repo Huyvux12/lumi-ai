@@ -53,6 +53,7 @@ async def reconcile_once(cfg, factory, client):
             payload = {
                 "id": tx.get("id"),
                 "accountNumber": tx.get("account_number"),
+                "subAccount": tx.get("va") or "",
                 "content": content,
                 "code": tx.get("code"),
                 "transferType": tx.get("transfer_type"),

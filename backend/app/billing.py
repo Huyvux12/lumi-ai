@@ -79,6 +79,16 @@ def authenticate_webhook(settings, raw, signature, timestamp):
         fail("INVALID_SIGNATURE", "Webhook không hợp lệ.", 401)
 
 
+def _account_matches(settings, payload):
+    expected = str(settings.bank_account)
+    reported = {
+        str(payload.get("accountNumber") or ""),
+        str(payload.get("subAccount") or ""),
+        str(payload.get("va") or ""),
+    }
+    return bool(expected) and expected in reported
+
+
 def payment_key(settings, payload):
     # v2 lookup IDs are UUIDs; bank webhook IDs can be integers. Prefer the shared bank reference.
     ref = payload.get("referenceCode")
@@ -129,7 +139,7 @@ async def apply_payment(db, settings, payload):
     reason = ""
     if payload.get("transferType") != "in":
         reason = "not_incoming"
-    elif str(payload.get("accountNumber")) != settings.bank_account:
+    elif not _account_matches(settings, payload):
         reason = "wrong_account"
     elif not order or order.environment != settings.sepay_environment:
         reason = "unknown_invoice"

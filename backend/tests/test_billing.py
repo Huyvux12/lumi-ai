@@ -105,6 +105,19 @@ def test_original_month_anchor():
     assert datetime.fromtimestamp(month_at(leap, 1) / 1000, VN).day == 29
 
 
+async def test_virtual_account_payment_activates(env):
+    app, client, cfg = env
+    await register(client)
+    created = await order(client)
+    response = await webhook(
+        client,
+        cfg,
+        payload(created, accountNumber="0123456789", subAccount=cfg.bank_account),
+    )
+    assert response.status_code == 200
+    assert (await client.get("/api/v1/billing/subscription")).json()["plan"] == "premium"
+
+
 async def test_early_renewal_keeps_current_period_and_snapshot(env):
     app, client, cfg = env
     await register(client)
