@@ -195,7 +195,7 @@ async def mfa_setup(
     await db.commit()
     from urllib.parse import quote
 
-    return {"secret": secret, "uri": f"otpauth://totp/Lumi:{quote(user.email)}?secret={secret}&issuer=Lumi"}
+    return {"secret": secret, "uri": f"otpauth://totp/PersonaX:{quote(user.email)}?secret={secret}&issuer=PersonaX"}
 
 
 @router.post("/auth/mfa/confirm")

@@ -376,7 +376,7 @@ export const characters: Character[] = [
   {
     id: "robo-bi",
     name: "Bi-07",
-    creator: "lumi.ai",
+    creator: "PersonaX",
     tagline: "Robot giúp việc hơi lỗi, cực kỳ nhiệt tình",
     description:
       "Robot giúp việc đời cũ vừa được khởi động lại. Có thể nấu ăn, nhưng không đảm bảo kết quả.",

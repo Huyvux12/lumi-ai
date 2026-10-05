@@ -604,7 +604,7 @@ function FinalCta({ ctaRef, webgl, signedIn }: { ctaRef: React.RefObject<HTMLEle
         transition={{ ...SPRING, delay: 0.6 }}
         className="glass absolute left-1/2 top-[9%] max-w-xs !bg-[#0b0b16]/85 shadow-[0_0_40px_-8px_rgb(167_139_250/0.6)] backdrop-blur-xl -translate-x-1/2 rounded-2xl rounded-bl-md px-4 py-3 text-sm font-medium sm:left-[62%] sm:top-[17%] sm:translate-x-0"
       >
-        Psst! Mình là <span className="text-gradient font-bold">Lumi</span> — người dẫn chuyện ở đây. Vào đi, mọi người đang đợi bạn đó ✨
+        Psst! Mình là <span className="text-gradient font-bold">PersonaX</span> — người dẫn chuyện ở đây. Vào đi, mọi người đang đợi bạn đó ✨
       </motion.div>
       <FadeUp>
         <h2 className="text-5xl font-bold leading-[1.02] tracking-tight [text-shadow:0_4px_40px_rgb(5_5_10/0.9)] sm:text-7xl">

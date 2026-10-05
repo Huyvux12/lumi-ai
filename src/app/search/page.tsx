@@ -1,7 +1,7 @@
 import { CatalogResults } from "@/components/CatalogResults";
 import { SearchBar } from "@/components/SearchBar";
 import { CategoryChips } from "@/components/CategoryChips";
-export const metadata = { title: "Tìm kiếm — Lumi" };
+export const metadata = { title: "Tìm kiếm — PersonaX" };
 export default async function Page({ searchParams }: PageProps<"/search">) {
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q : "";

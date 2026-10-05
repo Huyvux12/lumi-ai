@@ -208,7 +208,7 @@ function AdminAccount() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Quản trị Lumi</h1>
+        <h1 className="text-3xl font-bold">Quản trị PersonaX</h1>
         <span className="rounded-full bg-accent/15 px-4 py-2 text-sm text-accent">
           {user.role} · @{user.username}
         </span>

@@ -599,7 +599,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                     <div className="flex items-start gap-3 rounded-2xl bg-accent/[0.07] p-3">
                       <Mascot mood="idle" className="size-12 shrink-0" />
                       <p className="text-[13px] leading-relaxed text-fg-2">
-                        Mẹo của Lumi: đặt hành động trong{" "}
+                        Mẹo của PersonaX: đặt hành động trong{" "}
                         <em className="text-fg">*dấu sao*</em> và kết thúc bằng
                         một câu hỏi — người chat sẽ biết ngay nên trả lời gì!
                       </p>

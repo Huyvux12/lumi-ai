@@ -308,7 +308,7 @@ function BillingAccount() {
                 </p>
                 {copied && <p className="text-accent">Đã sao chép.</p>}
                 <p className="text-fg-2">
-                  Giữ nguyên số tiền và nội dung chuyển khoản. Lumi tự kiểm tra
+                  Giữ nguyên số tiền và nội dung chuyển khoản. PersonaX tự kiểm tra
                   xác nhận thanh toán.
                 </p>
                 <p className="text-fg-3">

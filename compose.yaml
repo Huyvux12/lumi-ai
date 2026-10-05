@@ -23,7 +23,7 @@ services:
       retries: 12
     restart: unless-stopped
   backend:
-    image: ghcr.io/huyvux12/lumi-ai-backend:dev
+    image: ghcr.io/huyvux12/lumi-ai-backend:main
     build: ./backend
     env_file: .env.backend
     environment:
@@ -38,7 +38,7 @@ services:
       redis: {condition: service_healthy}
     restart: unless-stopped
   frontend:
-    image: ghcr.io/huyvux12/lumi-ai-frontend:dev
+    image: ghcr.io/huyvux12/lumi-ai-frontend:main
     build:
       context: .
       args:

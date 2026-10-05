@@ -137,7 +137,7 @@ async def send_auth_email(db, settings, user, purpose):
     message = EmailMessage()
     message["From"] = settings.mail_from
     message["To"] = user.email
-    message["Subject"] = "Lumi — đặt lại mật khẩu" if purpose == "reset" else "Lumi — xác minh email"
+    message["Subject"] = "PersonaX — đặt lại mật khẩu" if purpose == "reset" else "PersonaX — xác minh email"
     message.set_content(f"Mở liên kết sau để tiếp tục:\n{url}\nNếu bạn không yêu cầu, hãy bỏ qua email.")
     if settings.smtp_host:
 

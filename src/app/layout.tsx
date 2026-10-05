@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "lumi.ai — Khám phá nhân vật AI",
+  title: "PersonaX — Khám phá nhân vật AI",
   description: "Khám phá và trò chuyện nhập vai với nhân vật anime, game và nhân vật AI của riêng bạn.",
 };
 

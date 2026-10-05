@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CharacterEditor } from "./CharacterEditor";
 
-export const metadata: Metadata = { title: "Tạo nhân vật — lumi.ai" };
+export const metadata: Metadata = { title: "Tạo nhân vật — PersonaX" };
 
 export default async function CreatePage({ searchParams }: PageProps<"/create">) {
   const { edit } = await searchParams;

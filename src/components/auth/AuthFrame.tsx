@@ -71,7 +71,7 @@ export function AuthFrame({
               mood={mood}
               look={look}
               track={!look}
-              label="Lumi, linh hồn kể chuyện"
+              label="PersonaX, linh hồn kể chuyện"
               className="mx-auto h-40 w-40 drop-shadow-[0_0_40px_rgb(138_180_255/0.45)] sm:h-52 sm:w-52 lg:h-80 lg:w-80"
             />
           </div>

@@ -130,7 +130,7 @@ def create_app(settings=None, *, transport=None):
             await engine.dispose()
 
     app = FastAPI(
-        title="Lumi API",
+        title="PersonaX API",
         version="0.1.0",
         lifespan=lifespan,
         docs_url=None if cfg.production else "/docs",

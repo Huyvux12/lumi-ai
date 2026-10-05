@@ -488,7 +488,7 @@ export function SignupForm({ next }: { next: string }) {
                     Gu <span className="text-gradient">câu chuyện</span> của bạn
                   </h1>
                   <p className="-mt-2 text-sm text-fg-2">
-                    Chọn vài thể loại để Lumi gợi ý nhân vật hợp ý.
+                    Chọn vài thể loại để PersonaX gợi ý nhân vật hợp ý.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {categories.map((c) => {

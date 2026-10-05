@@ -6,9 +6,9 @@ export async function generateMetadata({ params }: PageProps<"/chat/[id]">) {
   const c = getCharacter(id);
   return {
     title: c
-      ? `Trò chuyện với ${c.name} — lumi.ai`
+      ? `Trò chuyện với ${c.name} — PersonaX`
       : id.startsWith("u-")
-        ? "Trò chuyện — lumi.ai"
+        ? "Trò chuyện — PersonaX"
         : "Không tìm thấy",
   };
 }

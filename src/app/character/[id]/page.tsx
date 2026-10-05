@@ -12,9 +12,9 @@ export async function generateMetadata({
   const c = getCharacter(id);
   return {
     title: c
-      ? `${c.name} — lumi.ai`
+      ? `${c.name} — PersonaX`
       : id.startsWith("u-")
-        ? "Nhân vật của bạn — lumi.ai"
+        ? "Nhân vật của bạn — PersonaX"
         : "Không tìm thấy",
   };
 }

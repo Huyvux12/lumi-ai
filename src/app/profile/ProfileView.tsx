@@ -306,7 +306,7 @@ function Profile({ user }: { user: User }) {
             {tab === "chars" ? (
               mine.length === 0 ? (
                 <Empty
-                  text="Bạn chưa tạo nhân vật nào. Lumi đang chờ được gặp người bạn đầu tiên của bạn!"
+                  text="Bạn chưa tạo nhân vật nào. PersonaX đang chờ được gặp người bạn đầu tiên của bạn!"
                   cta={{ href: "/create", label: "Tạo nhân vật đầu tiên" }}
                 />
               ) : (

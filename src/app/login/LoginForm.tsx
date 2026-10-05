@@ -49,7 +49,7 @@ export function LoginForm({ next }: { next: string }) {
           : "Mình che mắt rồi, không nhìn đâu! 🙈"
         : focus === "email"
           ? "Mình đang đọc email của bạn nè…"
-          : "Chào bạn! Mình là Lumi — linh hồn kể chuyện.";
+          : "Chào bạn! Mình là PersonaX — linh hồn kể chuyện.";
 
   const fail = (msg: string) => {
     setError(msg);

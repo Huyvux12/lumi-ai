@@ -65,7 +65,7 @@ export function Logo({ onClick }: { onClick?: () => void }) {
         <span className="relative size-6 rounded-full bg-gradient-to-br from-white via-accent to-violet shadow-[inset_0_-3px_6px_rgb(0_0_0/0.25)]" />
       </span>
       <span>
-        lumi<span className="text-gradient">.ai</span>
+        Persona<span className="text-gradient">X</span>
       </span>
     </Link>
   );

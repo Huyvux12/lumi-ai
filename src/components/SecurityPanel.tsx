@@ -97,7 +97,7 @@ export function SecurityPanel() {
             }}
           >
             <p className="text-fg-2">
-              Trong Authenticator, thêm tài khoản Lumi bằng khóa thiết lập này.
+              Trong Authenticator, thêm tài khoản PersonaX bằng khóa thiết lập này.
               Lưu khóa an toàn để khôi phục quyền truy cập.
             </p>
             <code className="my-3 block break-all select-all rounded-lg bg-black/30 p-3">

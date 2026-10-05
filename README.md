@@ -1,4 +1,4 @@
-# Lumi AI
+# PersonaX
 
 Ứng dụng nhập vai nhân vật với Next.js 16 / React 19 và backend Python FastAPI. Backend lưu tài khoản, nhân vật, hội thoại, đơn thanh toán và usage vào database; frontend gọi cùng origin qua `/api/v1`.
 
@@ -8,7 +8,7 @@
 - Nhân vật riêng tư/công khai chờ duyệt; catalog seed giữ URL cũ của 26 nhân vật và 7 bối cảnh. Giao diện lấy hồ sơ và số hội thoại từ API.
 - Lịch sử hội thoại theo tài khoản, phân trang, cuộc trò chuyện mới, tạo lại phản hồi, hủy và idempotency. API SSE phát các sự kiện có cấu trúc sau khi LLM trả JSON hợp lệ.
 - Free và Premium **250.000 VND / một tháng từ khi kích hoạt**, giữ billing anchor cho gia hạn ngày cuối tháng. Gia hạn sớm nối kỳ kế tiếp và không reset quota kỳ hiện tại.
-- Hiển thị QR VietQR trong Lumi; tự kiểm tra trạng thái đơn mỗi 3 giây. SePay bank webhook xác thực HMAC, chống cấp quyền trùng, kiểm tra tài khoản/số tiền/mã đơn; đối soát qua **SePay API v2**.
+- Hiển thị QR VietQR trong PersonaX; tự kiểm tra trạng thái đơn mỗi 3 giây. SePay bank webhook xác thực HMAC, chống cấp quyền trùng, kiểm tra tài khoản/số tiền/mã đơn; đối soát qua **SePay API v2**.
 - Quota được reserve → commit/release ở backend và chỉ trả số liệu cho admin. Trang gói mô tả giới hạn bằng lời; không có số đã dùng/còn lại/reset trong public API.
 - Groq STT: ghi âm hoặc tải tệp → giải mã WAV mono 16 kHz có giới hạn → nhận transcript tiếng Việt → người dùng sửa và tự gửi. Không tự gửi lời nói vào chat.
 - Gemini 3.8 TTS: LLM chọn emotion, pace, delivery và vocal tags; backend kiểm tra allowlist. Chỉ các segment `dialogue` được đọc. `narration` không đi vào TTS. Stream PCM 16-bit LE, 24 kHz, mono; cache riêng theo người dùng và tin nhắn trong 24 giờ. Preset Kore/Puck; không có voice clone/design.
