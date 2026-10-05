@@ -37,7 +37,7 @@ def upgrade():
         "plan_versions",
         ["code"],
         unique=True,
-        postgresql_where=sa.text("active IS 1"),
+        postgresql_where=sa.text("active IS true"),
         sqlite_where=sa.text("active IS 1"),
     )
     op.create_table(
@@ -54,7 +54,7 @@ def upgrade():
         "prompt_versions",
         ["published"],
         unique=True,
-        postgresql_where=sa.text("published IS 1"),
+        postgresql_where=sa.text("published IS true"),
         sqlite_where=sa.text("published IS 1"),
     )
     op.create_table(
@@ -335,14 +335,14 @@ def downgrade():
     op.drop_index(
         "uq_published_prompt",
         table_name="prompt_versions",
-        postgresql_where=sa.text("published IS 1"),
+        postgresql_where=sa.text("published IS true"),
         sqlite_where=sa.text("published IS 1"),
     )
     op.drop_table("prompt_versions")
     op.drop_index(
         "uq_active_plan",
         table_name="plan_versions",
-        postgresql_where=sa.text("active IS 1"),
+        postgresql_where=sa.text("active IS true"),
         sqlite_where=sa.text("active IS 1"),
     )
     op.drop_index(op.f("ix_plan_versions_code"), table_name="plan_versions")
