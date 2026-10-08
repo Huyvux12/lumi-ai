@@ -15,6 +15,16 @@ export function AccountRecovery({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  if (process.env.NEXT_PUBLIC_RENDER_DEMO === "true") {
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-16">
+        <h1 className="text-2xl font-semibold">Email đã tắt trong bản demo</h1>
+        <p className="text-fg-2">Bạn có thể đăng ký và trò chuyện ngay. Nếu quên mật khẩu, hãy tạo tài khoản demo khác.</p>
+        <Link href="/signup" className="block text-accent">Tạo tài khoản demo</Link>
+        <Link href="/login" className="block text-fg-2">Về đăng nhập</Link>
+      </div>
+    );
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);

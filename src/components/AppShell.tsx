@@ -27,6 +27,7 @@ import {
 import { Portrait } from "./Portrait";
 import { UserAvatar } from "./UserAvatar";
 import { CursorGlow } from "./fx/CursorGlow";
+import { RenderDemoNotice } from "./RenderDemoNotice";
 
 /** Full-bleed routes that render without the sidebar chrome. */
 const BARE = ["/welcome", "/login", "/signup"];
@@ -204,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (bare) {
     return (
       <MotionConfig reducedMotion="user">
-        <main id="main">{children}</main>
+        <main id="main"><RenderDemoNotice />{children}</main>
       </MotionConfig>
     );
   }
@@ -291,6 +292,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       <main id="main" className="relative z-10 min-w-0 lg:pl-60">
+        <RenderDemoNotice />
         {children}
       </main>
     </MotionConfig>

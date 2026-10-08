@@ -35,7 +35,7 @@ async def turn(
     db=Depends(db_session),
 ):
     settings = request.app.state.settings
-    if settings.production and not user.email_verified:
+    if settings.production and not settings.render_demo and not user.email_verified:
         fail("EMAIL_REQUIRED", "Vui lòng xác minh email trước khi trò chuyện.", 403)
     await request.app.state.limiter.check(f"chat:{user.id}", 30)
     conversation = await own_conversation(db, ident, user)

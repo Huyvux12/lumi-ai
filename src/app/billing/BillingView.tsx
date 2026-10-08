@@ -39,6 +39,7 @@ export function BillingView() {
   return <BillingAccount key={user?.id ?? "guest"} />;
 }
 function BillingAccount() {
+  const renderDemo = process.env.NEXT_PUBLIC_RENDER_DEMO === "true";
   const user = useUser();
   const ready = useAuthReady();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -213,14 +214,16 @@ function BillingAccount() {
             {plan.code === "premium" ? (
               user ? (
                 <button
-                  disabled={busy || order?.status === "pending"}
+                  disabled={renderDemo || busy || order?.status === "pending"}
                   onClick={() => {
                     if (order && order.status !== "pending") key.current = null;
                     void buy();
                   }}
                   className="btn-glow w-full rounded-full p-3 font-semibold disabled:opacity-50"
                 >
-                  {busy
+                  {renderDemo
+                    ? "Thanh toán đã tắt trong demo"
+                    : busy
                     ? "Đang tạo QR…"
                     : order?.status === "pending"
                       ? "QR đang chờ thanh toán"

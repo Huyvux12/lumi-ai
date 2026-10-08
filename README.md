@@ -1,5 +1,11 @@
 # PersonaX
 
+## Demo trên Render Free
+
+[Deploy to Render](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FHuyvux12%2Flumi-ai%2Ftree%2Frender-deploy)
+
+Chọn **New → Blueprint**, repo này và nhánh **render-deploy** để Render tự tạo một web service + PostgreSQL, đều **Free**. Không cần nhập key để thử đăng ký/chat mẫu. Owner được tạo tự động với mật khẩu secret do Render sinh; admin vẫn cần MFA. Email/thanh toán bị tắt trong demo. Xem [hướng dẫn Render](deploy/render/README.md) để lấy mật khẩu admin, thêm API key thật và kiểm tra giới hạn database 30 ngày.
+
 Ứng dụng nhập vai nhân vật với Next.js 16 / React 19 và backend Python FastAPI. Backend lưu tài khoản, nhân vật, hội thoại, đơn thanh toán và usage vào database; frontend gọi cùng origin qua `/api/v1`.
 
 ## Những phần đã triển khai

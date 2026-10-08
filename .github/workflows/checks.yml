@@ -3,6 +3,57 @@ on:
   push:
   pull_request:
 jobs:
+  render-demo:
+    if: github.ref == 'refs/heads/render-deploy' || github.head_ref == 'render-deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/render/Dockerfile
+          load: true
+          tags: personax-render-demo:test
+          cache-from: type=gha,scope=render-demo
+          cache-to: type=gha,mode=max,scope=render-demo
+      - name: Start test database
+        run: |
+          docker run -d --name demo-db -p 5432:5432 \
+            -e POSTGRES_DB=demo -e POSTGRES_USER=demo -e POSTGRES_PASSWORD=test_only \
+            postgres:17-alpine
+          for attempt in $(seq 1 60); do
+            if docker exec demo-db pg_isready -U demo -d demo; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Generate isolated test configuration
+        run: |
+          python - <<'PY'
+          import base64, secrets
+          from pathlib import Path
+          config = {
+              "DATABASE_URL": "postgresql://demo:test_only@127.0.0.1:5432/demo",
+              "PUBLIC_APP_URL": "https://demo.example.com",
+              "MFA_ENCRYPTION_KEY": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
+              "DEMO_OWNER_PASSWORD": secrets.token_urlsafe(32),
+          }
+          Path("/tmp/personax-demo-test.env").write_text("\n".join(f"{k}={v}" for k, v in config.items()))
+          PY
+      - name: Check the Render image
+        run: |
+          docker run -d --name demo-app --network host \
+            --memory=512m --env-file /tmp/personax-demo-test.env personax-render-demo:test
+          python scripts/check_render_demo.py
+          docker stats --no-stream demo-app
+      - name: Container logs
+        if: failure()
+        run: docker logs demo-app
+      - name: Clean up
+        if: always()
+        run: |
+          docker rm -f demo-app demo-db || true
+          rm -f /tmp/personax-demo-test.env
   frontend:
     runs-on: ubuntu-latest
     steps:

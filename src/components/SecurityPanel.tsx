@@ -27,7 +27,7 @@ export function SecurityPanel() {
         Bảo mật tài khoản {user.mfa_enabled ? "· MFA đã bật" : ""}
       </summary>
       <div className="mt-4 space-y-4 text-sm">
-        {!user.email_verified && (
+        {process.env.NEXT_PUBLIC_RENDER_DEMO !== "true" && !user.email_verified && (
           <div>
             <p className="mb-2 text-fg-2">
               Xác minh email để sử dụng AI khi hệ thống được đưa lên chính thức.
@@ -61,8 +61,8 @@ export function SecurityPanel() {
             }}
           >
             <p className="mb-2 text-fg-2">
-              Thêm xác thực 2 bước bằng ứng dụng Authenticator. Trên máy local
-              có thể bỏ qua. MFA chỉ bắt buộc khi chạy production.
+              Thêm xác thực 2 bước bằng ứng dụng Authenticator. MFA bắt buộc
+              khi vào quản trị trên máy chủ, kể cả bản demo.
             </p>
             <label>
               Mật khẩu hiện tại

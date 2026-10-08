@@ -67,7 +67,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
             "tts": bool(cfg.google_key or cfg.tts_project),
             "sepay": bool(cfg.sepay_secret and cfg.bank_account),
             "sepay_environment": cfg.sepay_environment,
-            "demo_llm": cfg.demo_llm,
+            "demo_llm": cfg.sample_replies,
         },
         "cost_note": "Ước tính LLM theo Qwen 3.8; TTS/STT cần đối chiếu hóa đơn provider. Không phải tổng chi phí thực tế.",
     }

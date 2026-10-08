@@ -1,0 +1,19 @@
+# Overrides the root .dockerignore, which excludes backend/ for the FE-only image.
+.git
+.github
+node_modules
+.next
+**/.venv
+**/.data
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+**/*.pyc
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+*.tsbuildinfo
+backend/tests

@@ -20,7 +20,9 @@ class Settings:
     )
     redis_url: str = field(default_factory=lambda: os.getenv("REDIS_URL", ""))
     public_url: str = field(
-        default_factory=lambda: os.getenv("PUBLIC_APP_URL", "http://localhost:3000").rstrip("/")
+        default_factory=lambda: os.getenv(
+            "PUBLIC_APP_URL", os.getenv("RENDER_EXTERNAL_URL", "http://localhost:3000")
+        ).rstrip("/")
     )
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("DATA_DIR", ".data")))
     auto_migrate: bool = field(default_factory=lambda: flag("AUTO_MIGRATE", True))
@@ -45,10 +47,21 @@ class Settings:
     smtp_user: str = field(default_factory=lambda: os.getenv("SMTP_USER", ""))
     smtp_password: str = field(default_factory=lambda: os.getenv("SMTP_PASSWORD", ""))
     mail_from: str = field(default_factory=lambda: os.getenv("MAIL_FROM", "lumi@localhost"))
+    demo_owner_password: str = field(default_factory=lambda: os.getenv("DEMO_OWNER_PASSWORD", ""))
+    demo_owner_email: str = field(default_factory=lambda: os.getenv("DEMO_OWNER_EMAIL", "demo-owner@example.com"))
+
+    @property
+    def render_demo(self):
+        return self.environment == "render-demo"
+
+    @property
+    def sample_replies(self):
+        return self.demo_llm or (self.render_demo and not self.groq_key)
 
     @property
     def production(self):
-        return self.environment == "production"
+        # Hosted demos retain HTTPS cookies and staff MFA requirements.
+        return self.environment in {"production", "render-demo"}
 
     def validate(self):
         if self.database_url.startswith(("postgres://", "postgresql://")):
@@ -56,10 +69,20 @@ class Settings:
         if self.production:
             if not self.database_url.startswith("postgresql+asyncpg://"):
                 raise RuntimeError("Production requires PostgreSQL")
-            if not self.public_url.startswith("https://") or not self.redis_url or not self.mfa_key:
+            if not self.public_url.startswith("https://") or not self.mfa_key:
+                raise RuntimeError("Hosted environments require HTTPS and MFA_ENCRYPTION_KEY")
+            if not self.render_demo and not self.redis_url:
                 raise RuntimeError("Production requires HTTPS, Redis and MFA_ENCRYPTION_KEY")
-            if self.demo_llm or self.auto_migrate:
+            if (self.demo_llm and not self.render_demo) or self.auto_migrate:
                 raise RuntimeError("Disable DEMO_LLM and AUTO_MIGRATE in production")
+            from cryptography.fernet import Fernet
+
+            Fernet(self.mfa_key.encode())
+        if self.render_demo:
+            if self.sepay_environment != "test":
+                raise RuntimeError("Render demo cannot use live payments")
+            if not 16 <= len(self.demo_owner_password) <= 128:
+                raise RuntimeError("Render demo requires DEMO_OWNER_PASSWORD with 16–128 characters")
         if self.sepay_environment not in {"test", "live"}:
             raise RuntimeError("SEPAY_ENV must be test or live")
         if not self.payment_prefix.isalnum() or len(self.payment_prefix) > 10:
