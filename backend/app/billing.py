@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import re
 import secrets
 from datetime import datetime, timezone
@@ -152,7 +153,9 @@ async def apply_payment(db, settings, payload):
     event = PaymentEvent(
         key=key,
         order_id=order.id if order else None,
-        payload=payload,
+        # Python accepts non-finite JSON numbers; PostgreSQL rejects them.
+        # Preserve their spelling as strings in the audit without changing validation.
+        payload=json.loads(json.dumps(payload), parse_constant=str),
         status="review" if reason else "applied",
         reason=reason,
     )

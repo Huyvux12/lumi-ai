@@ -84,6 +84,8 @@ import pytest
         {"content": "UNKNOWN"},
         {"content": "XLUMI0000000000000000X"},
         {"transferAmount": float("inf")},
+        {"transferAmount": float("-inf")},
+        {"transferAmount": float("nan")},
     ],
 )
 async def test_invalid_payment_never_activates(env, changes):
@@ -95,6 +97,9 @@ async def test_invalid_payment_never_activates(env, changes):
     assert (await client.get("/api/v1/billing/subscription")).json()["plan"] == "free"
     async with app.state.db() as db:
         assert await db.scalar(select(func.count()).select_from(Subscription)) == 0
+        event = (await db.execute(select(PaymentEvent))).scalar_one()
+        # Audit payload remains strict JSON even for a malformed provider amount.
+        json.dumps(event.payload, allow_nan=False)
 
 
 def test_original_month_anchor():
