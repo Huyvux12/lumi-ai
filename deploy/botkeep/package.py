@@ -48,7 +48,7 @@ def package(output):
                 "name": "personax-botkeep-runtime", "engines": {"node": ">=24 <25"},
             }},
         }, indent=2) + "\n")
-        (front / ".gitignore").write_text("/.env\n/node_modules/\n/runtime/.next/cache/\n*.log\n")
+        (front / ".gitignore").write_text("/.env\n/node_modules/\n/.botkeep-runtime/\n/runtime/.next/cache/\n*.log\n")
         (front / "BUILD.json").write_text(json.dumps({
             "source_branch": "Botkeep", "source_commit": commit,
             "runtime_branch": "botkeep-frontend", "next_version": "16.3.8",

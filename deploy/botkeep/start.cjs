@@ -23,7 +23,19 @@ function start() {
     throw new Error("PYTHON_API_URL must be an HTTPS origin without credentials or a path");
   }
   const runtime = path.join(__dirname, "runtime");
-  const manifestPath = path.join(runtime, ".next", "routes-manifest.json");
+  // Keep Git-tracked files pristine so later repository updates can apply cleanly.
+  // Only .next and the launcher are copied; large read-only dependencies stay shared.
+  const working = path.join(__dirname, ".botkeep-runtime");
+  fs.rmSync(working, { recursive: true, force: true });
+  fs.mkdirSync(working);
+  for (const file of ["server.js", "package.json"]) {
+    fs.copyFileSync(path.join(runtime, file), path.join(working, file));
+  }
+  fs.cpSync(path.join(runtime, ".next"), path.join(working, ".next"), { recursive: true });
+  for (const directory of ["node_modules", "public"]) {
+    fs.symlinkSync(path.join(runtime, directory), path.join(working, directory), "dir");
+  }
+  const manifestPath = path.join(working, ".next", "routes-manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const groups = Array.isArray(manifest.rewrites)
     ? [manifest.rewrites]
@@ -45,7 +57,7 @@ function start() {
   process.env.PORT = rawPort;
   process.env.NODE_ENV = "production";
   process.env.NEXT_TELEMETRY_DISABLED = "1";
-  require(path.join(runtime, "server.js"));
+  require(path.join(working, "server.js"));
 }
 
 if (require.main === module) start();

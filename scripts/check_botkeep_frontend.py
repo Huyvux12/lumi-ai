@@ -76,6 +76,8 @@ def check(archive=None, directory=None):
                     bundle.extractall(root)
             assert (root / "package.json").is_file()
             assert (root / "runtime/server.js").is_file()
+            tracked_manifest = root / "runtime/.next/routes-manifest.json"
+            original_manifest = tracked_manifest.read_bytes()
             port = free_port()
             (root / ".env").write_text(
                 f"SERVER_PORT={port}\nPYTHON_API_URL=http://127.0.0.1:{backend.server_port}\n"
@@ -139,6 +141,8 @@ def check(archive=None, directory=None):
                     conn.request("GET", "/", headers={"Cookie": "rb_guest=1"})
                     response = conn.getresponse()
                     assert response.status == 200 and "Bản demo" in response.read().decode()
+                    assert tracked_manifest.read_bytes() == original_manifest, "Startup changed a Git-tracked file"
+                    assert (root / ".botkeep-runtime/.next/routes-manifest.json").read_bytes() != original_manifest
                     conn.close()
                 finally:
                     child.terminate()
