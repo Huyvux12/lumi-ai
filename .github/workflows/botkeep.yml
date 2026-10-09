@@ -1,15 +1,19 @@
-name: Botkeep Founder Free packages
+name: Botkeep GitHub deploy
 on:
   push:
     branches: [Botkeep]
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: botkeep-github-deploy
+  cancel-in-progress: false
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - uses: actions/setup-node@v4
         with: {node-version: 24, cache: npm}
       - uses: actions/setup-python@v5
@@ -25,6 +29,7 @@ jobs:
           PYTHON_API_URL: http://127.0.0.1:8000
       - run: python deploy/botkeep/package.py
       - run: python scripts/check_botkeep_frontend.py --zip dist/botkeep/personax-botkeep-frontend.zip
+      - run: python scripts/check_botkeep_publish.py
       - uses: actions/upload-artifact@v4
         with:
           name: botkeep-founder-free
@@ -98,3 +103,19 @@ jobs:
             if [ -f "$file" ]; then kill "$(cat "$file")" || true; fi
           done
           rm -f /tmp/personax-demo-test.env /tmp/botkeep-backend/.env /tmp/botkeep-frontend/.env
+  publish-frontend:
+    needs: [package, native-integration]
+    if: github.ref == 'refs/heads/Botkeep'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v4
+        with: {name: botkeep-founder-free, path: /tmp/botkeep-packages}
+      - name: Publish the tested frontend to botkeep-frontend
+        run: python deploy/botkeep/publish_frontend.py --zip /tmp/botkeep-packages/personax-botkeep-frontend.zip

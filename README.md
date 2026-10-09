@@ -1,6 +1,6 @@
 # Deploy demo trên Botkeep Founder Free
 
-Nhánh `Botkeep`: [hướng dẫn triển khai](deploy/botkeep/README.md). Actions tự tạo ZIP frontend standalone và backend, dùng ba workload Node.js/Python/PostgreSQL trong tổng tài nguyên Founder Free.
+Nhánh `Botkeep`: [hướng dẫn triển khai từ GitHub](deploy/botkeep/README.md). Backend lấy nhánh `Botkeep`, project root `backend`; frontend lấy nhánh `botkeep-frontend`, project root `/`, chạy `npm start`. Actions build, kiểm tra rồi tự cập nhật nhánh frontend; không cần tải ZIP thủ công. Dùng ba workload Node.js/Python/PostgreSQL trong tổng tài nguyên Founder Free.
 
 # PersonaX
 

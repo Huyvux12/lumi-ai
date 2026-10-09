@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -59,18 +60,22 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def check(archive):
+def check(archive=None, directory=None):
     backend = ThreadingHTTPServer(("127.0.0.1", 0), Backend)
     thread = threading.Thread(target=backend.serve_forever, daemon=True)
     thread.start()
     try:
         with tempfile.TemporaryDirectory(prefix="botkeep-check-") as scratch:
             root = Path(scratch)
-            with zipfile.ZipFile(archive) as bundle:
-                assert "package.json" in bundle.namelist()
-                assert "runtime/server.js" in bundle.namelist()
-                assert not any(name == ".env" or name.endswith("/.env") for name in bundle.namelist())
-                bundle.extractall(root)
+            if directory is not None:
+                assert not any(path.name == ".env" for path in directory.rglob("*"))
+                shutil.copytree(directory, root, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
+            else:
+                with zipfile.ZipFile(archive) as bundle:
+                    assert not any(name == ".env" or name.endswith("/.env") for name in bundle.namelist())
+                    bundle.extractall(root)
+            assert (root / "package.json").is_file()
+            assert (root / "runtime/server.js").is_file()
             port = free_port()
             (root / ".env").write_text(
                 f"SERVER_PORT={port}\nPYTHON_API_URL=http://127.0.0.1:{backend.server_port}\n"
@@ -78,8 +83,8 @@ def check(archive):
             env = {key: value for key, value in os.environ.items() if key not in {
                 "SERVER_PORT", "PYTHON_API_URL", "PORT", "NODE_ENV",
             }}
-            # Reproduce a platform running npm install at the archive root.
-            subprocess.run(["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"],
+            # Reproduce a platform installing from the generated root lockfile.
+            subprocess.run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
                            cwd=root, env=env, check=True, stdout=subprocess.DEVNULL)
             with (root / "server.log").open("w+") as log:
                 child = subprocess.Popen(["node", "--max-old-space-size=192", "start.cjs"],
@@ -142,7 +147,7 @@ def check(archive):
                     except subprocess.TimeoutExpired:
                         child.kill()
                         child.wait()
-            print("Botkeep ZIP passed: runtime port/backend URL, root install, cookies, raw JSON, SSE, PCM, assets, demo UI.")
+            print("Botkeep frontend passed: runtime port/backend URL, root install, cookies, raw JSON, SSE, PCM, assets, demo UI.")
     finally:
         backend.shutdown()
         backend.server_close()
@@ -150,5 +155,8 @@ def check(archive):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--zip", type=Path, default=Path("dist/botkeep/personax-botkeep-frontend.zip"))
-    check(parser.parse_args().zip.resolve())
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--zip", type=Path, default=Path("dist/botkeep/personax-botkeep-frontend.zip"))
+    group.add_argument("--directory", type=Path)
+    args = parser.parse_args()
+    check(directory=args.directory.resolve()) if args.directory else check(args.zip.resolve())

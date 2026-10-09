@@ -37,7 +37,7 @@ function start() {
       }
     }
   }
-  if (updated !== 2) throw new Error("Unexpected Next rewrite manifest; rebuild the Botkeep ZIP");
+  if (updated !== 2) throw new Error("Unexpected Next rewrite manifest; rerun the Botkeep GitHub build");
   const temporary = manifestPath + ".tmp";
   fs.writeFileSync(temporary, JSON.stringify(manifest));
   fs.renameSync(temporary, manifestPath);

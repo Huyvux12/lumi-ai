@@ -28,6 +28,7 @@ def package(output):
     if config.get("env", {}).get("NEXT_PUBLIC_HOSTED_DEMO") != "true":
         raise RuntimeError("Build with NEXT_PUBLIC_HOSTED_DEMO=true before packaging")
     output.mkdir(parents=True, exist_ok=True)
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode().strip()
     with tempfile.TemporaryDirectory(prefix="botkeep-package-") as scratch:
         front = Path(scratch) / "frontend"
         runtime = front / "runtime"
@@ -38,7 +39,19 @@ def package(output):
         shutil.copy2(ROOT / "deploy/botkeep/start.cjs", front / "start.cjs")
         (front / "package.json").write_text(json.dumps({
             "name": "personax-botkeep-runtime", "private": True,
+            "engines": {"node": ">=24 <25"},
             "scripts": {"start": "node --max-old-space-size=192 start.cjs"},
+        }, indent=2) + "\n")
+        (front / "package-lock.json").write_text(json.dumps({
+            "name": "personax-botkeep-runtime", "lockfileVersion": 3,
+            "requires": True, "packages": {"": {
+                "name": "personax-botkeep-runtime", "engines": {"node": ">=24 <25"},
+            }},
+        }, indent=2) + "\n")
+        (front / ".gitignore").write_text("/.env\n/node_modules/\n/runtime/.next/cache/\n*.log\n")
+        (front / "BUILD.json").write_text(json.dumps({
+            "source_branch": "Botkeep", "source_commit": commit,
+            "runtime_branch": "botkeep-frontend", "next_version": "16.3.8",
         }, indent=2) + "\n")
         shutil.copy2(ROOT / "deploy/botkeep/frontend.env.example", front / ".env.example")
         shutil.copy2(ROOT / "deploy/botkeep/README.md", front / "README.md")
@@ -67,7 +80,7 @@ def package(output):
                 target.unlink()
                 raise RuntimeError(f"{label} exceeds its packaging budget")
             sizes[label] = {"uncompressed_bytes": uncompressed, "zip_bytes": target.stat().st_size}
-        sizes["commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode().strip()
+        sizes["commit"] = commit
         (output / "sizes.json").write_text(json.dumps(sizes, indent=2) + "\n")
         shutil.copy2(ROOT / "deploy/botkeep/README.md", output / "README.md")
         print(json.dumps(sizes, indent=2))

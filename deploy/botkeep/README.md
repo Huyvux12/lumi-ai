@@ -19,19 +19,28 @@ Kiểm tra Plans and billing và minimum allocation của từng profile; form h
 Hai slot còn lại không có thêm tài nguyên. Workload đã stop vẫn giữ allocation.
 Free thường 1 GB/2 slots không đủ cho cách chia ba workload này.
 
-## 1. Lấy ZIP đã build
+## 1. Chọn source GitHub — không tải ZIP
 
-Mỗi push vào `Botkeep` tự chạy **Actions → Botkeep Founder Free packages**.
-Mở run thành công, tải artifact **botkeep-founder-free**, giải nén artifact ngoài trên máy:
+Repo: **`Huyvux12/lumi-ai`**. Kết nối GitHub trong Botkeep và cấp App quyền cho repo này.
+Mỗi push vào `Botkeep` tự chạy **Actions → Botkeep GitHub deploy**: build frontend standalone,
+kiểm tra HTTP, chạy backend + PostgreSQL thật, rồi xuất bản frontend đã kiểm tra sang **`botkeep-frontend`**.
+Chờ cả job **publish-frontend** thành công trước khi tạo/cập nhật workload frontend.
 
-- `personax-botkeep-frontend.zip`: frontend standalone đã build, có đúng dependencies cần chạy.
-- `personax-botkeep-backend.zip`: source Python, migrations, catalog, tokenizer và dependencies manifest.
-- `sizes.json`: dung lượng ZIP và dung lượng giải nén, chưa bao gồm packages Python/database.
-- `README.md`: hướng dẫn này.
+| Workload | Source | Branch | Project root | Start command |
+| --- | --- | --- | --- | --- |
+| Frontend Node.js 24 | GitHub `Huyvux12/lumi-ai` | `botkeep-frontend` | `/` (gốc repo) | `npm start` |
+| Backend Python 3.12 | GitHub `Huyvux12/lumi-ai` | `Botkeep` | `backend` | `python botkeep_start.py` |
+| PostgreSQL | Managed database profile | — | — | Profile quản lý |
 
-**Không upload cả artifact ngoài vào một workload.** Chọn ZIP frontend/backend tương ứng.
-Workflow chỉ đóng gói và kiểm tra; không tự đăng nhập hay deploy lên tài khoản Botkeep.
-Workflow mới trên nhánh chưa merge vào default branch có thể chưa có nút Run workflow; push vào nhánh vẫn chạy tự động.
+**Không chọn nhánh `Botkeep` cho frontend:** đó là source đầy đủ, chưa phải runtime đã build.
+Nhánh `botkeep-frontend` do Actions quản lý; sửa code trên `Botkeep`, không sửa tay nhánh runtime.
+`BUILD.json` trên nhánh runtime ghi source commit để đối chiếu và rollback. Nhánh runtime giữ lịch sử cập nhật,
+không chứa source history của ứng dụng; lần đầu là một commit độc lập, lần sau cập nhật fast-forward.
+Dependencies Next standalone được commit riêng trong nhánh runtime có chủ đích; nhánh source không commit node_modules.
+
+ZIP trong Actions chỉ dùng nội bộ giữa các job/cho kiểm tra, **không cần tải về hoặc upload lên Botkeep**.
+Workflow không đăng nhập vào Botkeep. Botkeep lấy code từ hai nhánh theo cấu hình của bạn.
+Workflow trên nhánh chưa merge vào default branch có thể chưa có nút Run workflow; push vẫn chạy tự động.
 
 ## 2. Tạo PostgreSQL
 
@@ -43,18 +52,17 @@ Kiểm tra địa chỉ do panel cấp có thể kết nối từ workload Pytho
 
 ## 3. Tạo backend Python
 
-Chọn Python **3.12 hoặc bản tương thích**, source ZIP `personax-botkeep-backend.zip`, start command:
+Chọn Python **3.12 hoặc bản tương thích**, source **GitHub**, repo `Huyvux12/lumi-ai`,
+branch **`Botkeep`**, project root **`backend`**, start command:
 
 ```text
 python botkeep_start.py
 ```
 
-Hoặc source GitHub: repo `Huyvux12/lumi-ai`, branch `Botkeep`, project root `backend`, cùng start command.
-`requirements.txt` cài project với `constraints-botkeep.txt`, không cài pytest/ruff. Nếu profile chưa tự cài, dùng Console:
-
-```bash
-python -m pip install --no-cache-dir -r requirements.txt
-```
+`requirements.txt` ở project root cài project với `constraints-botkeep.txt`, không cài pytest/ruff.
+Kiểm tra bước dependency installation của profile đã chạy thành công trước khi Start.
+Nếu profile yêu cầu install command, đặt `python -m pip install --no-cache-dir -r requirements.txt`
+trong cấu hình cài dependencies. Console được tài liệu mô tả là nơi xem output; không giả định có shell/SSH để gõ lệnh.
 
 Tạo HTTPS alias cho backend trong **Domains**, ghi lại URL. Dùng **Network** để lấy port được cấp.
 `SERVER_PORT` phải là port đó; startup bind `0.0.0.0` và chỉ chạy một Uvicorn worker.
@@ -87,13 +95,15 @@ Mỗi lần start: validate cấu hình → migrate → tạo owner một lần 
 
 ## 4. Tạo frontend Node.js
 
-Chọn Node.js **24**, source ZIP `personax-botkeep-frontend.zip`, start command:
+Chọn Node.js **24**, source **GitHub**, repo `Huyvux12/lumi-ai`, branch **`botkeep-frontend`**,
+project root **`/`** (gốc repo), start command:
 
 ```text
 npm start
 ```
 
-Không chạy `npm ci` hoặc `next build` trên Botkeep. Root package không có dependencies cần tải;
+Không cấu hình `next build` trên Botkeep. `npm install`/`npm ci` ở project root đều nhẹ:
+root package và lockfile không có dependencies cần tải;
 dependencies đã trace nằm trong `runtime/node_modules`, an toàn trước `npm install` ở root.
 Giữ nguyên thư mục `runtime/`, kể cả `.next/` và node_modules bên trong.
 
@@ -126,18 +136,25 @@ TTS không cần ffmpeg nhưng vẫn cần quyền gọi model của Google. Chi
 Cache audio ở `DATA_DIR/audio`, xóa sau một giờ theo cấu hình (cleanup mỗi 30 giây), **không có trần tổng byte**.
 PCM 24 kHz/16-bit/mono chiếm khoảng 2,88 MB/phút; nhiều lượt TTS có thể làm đầy disk trước khi hết TTL.
 Ban đầu demo text trước, sau đó bật giọng nói khi đã theo dõi disk. Không tải model ML/torch/CUDA lên host.
-`sizes.json` chỉ đo code/artifact; giới hạn tổng 2 GB vẫn phải tính virtualenv/packages, cache, dữ liệu PostgreSQL và backups.
+`sizes.json` trong Actions chỉ đo code/artifact; giới hạn tổng 2 GB vẫn phải tính virtualenv/packages, Git checkout/history, cache, dữ liệu PostgreSQL và backups.
+Nếu panel hỗ trợ shallow checkout, dùng nó cho nhánh runtime; theo dõi disk khi cập nhật nhiều lần.
 
 ## Cập nhật / backup / xử lý lỗi
 
-- Source GitHub backend: dùng tab GitHub để apply revision, rồi restart. Nút redeploy không tự pull code mới.
-- Frontend: tải artifact của commit mới, dừng workload rồi thay runtime bằng ZIP mới; giữ Environment.
+- Sửa code và push vào `Botkeep`; chờ **Botkeep GitHub deploy** thành công, bao gồm **publish-frontend**.
+- Trong tab GitHub của từng workload, preview/apply revision và restart. Frontend lấy `botkeep-frontend`; backend lấy `Botkeep`.
+- Muốn cập nhật tự động: bật **push updates** hoặc **pull-on-start** cho từng workload; các tùy chọn này không bật mặc định. Nút restart đơn thuần không đảm bảo lấy revision mới.
+- Vì backend là source branch, chưa bật auto-update backend nếu muốn chỉ apply code sau khi CI qua; chờ CI rồi apply hai workload theo thứ tự phù hợp với migration.
+- Hai workload cập nhật riêng, không có bảo đảm zero downtime hoặc rollback database tự động. Giữ nguyên Environment/MFA key và persistent DATA_DIR khi cập nhật.
+- Rollback frontend: chọn commit cũ trên `botkeep-frontend` trong GitHub tab nếu panel hỗ trợ chọn revision. Đối chiếu `BUILD.json` với source backend; database migration cần kế hoạch rollback/backup riêng.
 - Trước migration/update: backup PostgreSQL độc lập. Dừng database trước backup/restore theo hướng dẫn Botkeep.
 - `ORIGIN_REJECTED`: sửa `PUBLIC_APP_URL` khớp HTTPS frontend đang mở.
 - `SERVER_PORT` error: dùng đúng port Network cấp cho **từng** workload.
 - `/health` 502: kiểm tra backend, database, PYTHON_API_URL, Domains và khả năng kết nối giữa workload.
 - `Unexpected Next rewrite manifest`: build lại bằng version đang pin; không sửa thủ công manifest để bỏ kiểm tra.
-- Không có artifact: mở Actions log; ZIP chỉ được upload khi build và HTTP smoke test qua.
+- Nhánh `botkeep-frontend` chưa xuất hiện/còn cũ: mở Actions log, xem job **publish-frontend**. Job chỉ chạy khi build, HTTP smoke test và native integration qua; bỏ qua build đã bị source commit mới thay thế.
+- Publish báo permission denied: kiểm tra GitHub Actions policy/branch protection cho phép `GITHUB_TOKEN` có `contents: write`. Workflow chỉ cấp quyền ghi cho job publish, không cần PAT riêng.
+- Publish từ chối nhánh không phải runtime: không dùng `botkeep-frontend` cho code viết tay; kiểm tra metadata trước khi sửa cấu hình.
 
 ## Build / kiểm tra ở ngoài Botkeep
 
@@ -149,9 +166,10 @@ python scripts/check_botkeep_frontend.py
 python -m pytest backend/tests -q
 ```
 
-Smoke test dùng ZIP thật, backend HTTP mock: port/origin cấu hình runtime, install ở root, cookie/CSRF header,
+Smoke test dùng runtime thật từ ZIP và Git tree, backend HTTP mock: port/origin cấu hình runtime, install ở root, cookie/CSRF header,
 raw JSON, SSE không buffering, PCM, static assets và nhãn demo. Backend tests kiểm tra hosted security và bootstrap.
-Workflow còn chạy ZIP frontend + backend native với PostgreSQL thật trên GitHub Actions, kiểm tra migration, signup, chat SSE và owner MFA qua proxy.
+Workflow còn chạy frontend + backend native với PostgreSQL thật trên GitHub Actions, kiểm tra migration, signup, chat SSE và owner MFA qua proxy.
+Publish job dựng Git tree mới, chạy HTTP smoke test trên đúng tree này rồi push fast-forward; dependency/dotfile bị Git ignore không thể âm thầm mất khỏi bản deploy.
 Các kiểm tra local/CI không xác nhận mạng/TLS, profile minimum, ffmpeg hoặc tài nguyên thực tế trong tài khoản Botkeep.
 
 Tài liệu: [Hosting](https://botkeep.cloud/docs/hosting), [Python](https://botkeep.cloud/docs/python),
