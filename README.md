@@ -109,8 +109,10 @@ Giữ nguyên thư mục `runtime/`, kể cả `.next/` và node_modules bên tr
 
 Environment: `PYTHON_API_URL=https://BACKEND-DOMAIN` và `SERVER_PORT` được Network cấp.
 Tạo HTTPS alias trong Domains; dùng chính origin này làm `PUBLIC_APP_URL` của backend.
-Start frontend. Launcher đọc `.env` của Botkeep, sửa hai rewrites trong manifest của Next **16.3.8**,
-rồi chạy standalone cùng process trên `0.0.0.0:SERVER_PORT`. Thay URL backend chỉ cần restart,
+Start frontend. Launcher đọc `.env` của Botkeep, tạo bản sao `.next` trong thư mục tạm `.botkeep-runtime`
+và sửa hai rewrites của Next **16.3.8** trong bản sao đó. Dependencies/public được liên kết tới runtime gốc,
+không sao chép thêm toàn bộ node_modules. File được Git theo dõi giữ nguyên để apply revision mới.
+Standalone chạy cùng process trên `0.0.0.0:SERVER_PORT`. Thay URL backend chỉ cần restart,
 không phải build lại. Dùng HTTPS cho endpoint giữa hai workload; không tắt kiểm tra certificate.
 
 ## 5. Kiểm tra demo
@@ -136,7 +138,7 @@ TTS không cần ffmpeg nhưng vẫn cần quyền gọi model của Google. Chi
 Cache audio ở `DATA_DIR/audio`, xóa sau một giờ theo cấu hình (cleanup mỗi 30 giây), **không có trần tổng byte**.
 PCM 24 kHz/16-bit/mono chiếm khoảng 2,88 MB/phút; nhiều lượt TTS có thể làm đầy disk trước khi hết TTL.
 Ban đầu demo text trước, sau đó bật giọng nói khi đã theo dõi disk. Không tải model ML/torch/CUDA lên host.
-`sizes.json` trong Actions chỉ đo code/artifact; giới hạn tổng 2 GB vẫn phải tính virtualenv/packages, Git checkout/history, cache, dữ liệu PostgreSQL và backups.
+`sizes.json` trong Actions chỉ đo code/artifact; giới hạn tổng 2 GB vẫn phải tính virtualenv/packages, Git checkout/history, bản sao `.next` khi chạy (khoảng 7 MB nội dung ở build đã kiểm tra), cache, dữ liệu PostgreSQL và backups.
 Nếu panel hỗ trợ shallow checkout, dùng nó cho nhánh runtime; theo dõi disk khi cập nhật nhiều lần.
 
 ## Cập nhật / backup / xử lý lỗi
