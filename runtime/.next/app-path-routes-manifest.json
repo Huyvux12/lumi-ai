@@ -1,0 +1,22 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/page": "/admin",
+  "/api/chat/route": "/api/chat",
+  "/billing/page": "/billing",
+  "/character/[id]/page": "/character/[id]",
+  "/chat/[id]/page": "/chat/[id]",
+  "/create/page": "/create",
+  "/favicon.ico/route": "/favicon.ico",
+  "/forgot-password/page": "/forgot-password",
+  "/login/page": "/login",
+  "/page": "/",
+  "/profile/page": "/profile",
+  "/reset-password/page": "/reset-password",
+  "/scene/[id]/page": "/scene/[id]",
+  "/search/page": "/search",
+  "/section/[slug]/page": "/section/[slug]",
+  "/signup/page": "/signup",
+  "/verify-email/page": "/verify-email",
+  "/welcome/page": "/welcome"
+}

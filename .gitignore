@@ -1,0 +1,4 @@
+/.env
+/node_modules/
+/runtime/.next/cache/
+*.log

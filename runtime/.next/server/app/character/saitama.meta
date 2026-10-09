@@ -1,0 +1,39 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/character/layout,_N_T_/character/[id]/layout,_N_T_/character/[id]/page,_N_T_/character/saitama"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/character/$d$id/__PAGE__"
+  ],
+  "prefetchHints": {
+    "hints": 64,
+    "slots": {
+      "children": {
+        "hints": 96,
+        "slots": {
+          "children": {
+            "hints": 96,
+            "slots": {
+              "children": {
+                "hints": 160,
+                "slots": null
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/4136b49ea467357f051b3c7ffff00e680e179062551a9b8da25b7478902b05c9/$/character/saitama",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/character/[id]/page"
+    },
+    "isFallback": false
+  }
+}

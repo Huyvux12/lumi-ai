@@ -1,0 +1,39 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/section/layout,_N_T_/section/[slug]/layout,_N_T_/section/[slug]/page,_N_T_/section/pho-bien"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/section/$d$slug/__PAGE__"
+  ],
+  "prefetchHints": {
+    "hints": 64,
+    "slots": {
+      "children": {
+        "hints": 96,
+        "slots": {
+          "children": {
+            "hints": 96,
+            "slots": {
+              "children": {
+                "hints": 160,
+                "slots": null
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/c44ca6a67916354ebeac29c787c1887461e3bd9bb1c52eb42aba1ed619cab1da/$/section/pho-bien",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/section/[slug]/page"
+    },
+    "isFallback": false
+  }
+}

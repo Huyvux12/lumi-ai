@@ -1,0 +1,3 @@
+module.exports=[2747,a=>{"use strict";var b=a.i(7997);a.s(["default",0,function(){return(0,b.jsx)("div",{className:"mx-auto flex max-w-[1400px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-14","aria-busy":"true","aria-label":"Đang tải",children:[0,1].map(a=>(0,b.jsxs)("div",{className:"flex flex-col gap-3",children:[(0,b.jsx)("div",{className:"h-5 w-32 animate-pulse rounded bg-surface"}),(0,b.jsx)("div",{className:"grid gap-3 sm:grid-cols-2 xl:grid-cols-4",children:[0,1,2,3].map(a=>(0,b.jsx)("div",{className:"h-36 animate-pulse rounded-2xl bg-surface"},a))})]},a))})}])},25210,function(a){a.n(a.i(2747))}];
+
+//# sourceMappingURL=src_app_loading_tsx_01g_-m0._.js.map
