@@ -49,19 +49,24 @@ class Settings:
     mail_from: str = field(default_factory=lambda: os.getenv("MAIL_FROM", "lumi@localhost"))
     demo_owner_password: str = field(default_factory=lambda: os.getenv("DEMO_OWNER_PASSWORD", ""))
     demo_owner_email: str = field(default_factory=lambda: os.getenv("DEMO_OWNER_EMAIL", "demo-owner@example.com"))
+    audio_cache_ttl_seconds: int = field(default_factory=lambda: int(os.getenv("AUDIO_CACHE_TTL_SECONDS", "86400")))
 
     @property
     def render_demo(self):
         return self.environment == "render-demo"
 
     @property
+    def hosted_demo(self):
+        return self.environment in {"render-demo", "botkeep-demo"}
+
+    @property
     def sample_replies(self):
-        return self.demo_llm or (self.render_demo and not self.groq_key)
+        return self.demo_llm or (self.hosted_demo and not self.groq_key)
 
     @property
     def production(self):
         # Hosted demos retain HTTPS cookies and staff MFA requirements.
-        return self.environment in {"production", "render-demo"}
+        return self.environment == "production" or self.hosted_demo
 
     def validate(self):
         if self.database_url.startswith(("postgres://", "postgresql://")):
@@ -71,18 +76,20 @@ class Settings:
                 raise RuntimeError("Production requires PostgreSQL")
             if not self.public_url.startswith("https://") or not self.mfa_key:
                 raise RuntimeError("Hosted environments require HTTPS and MFA_ENCRYPTION_KEY")
-            if not self.render_demo and not self.redis_url:
+            if not self.hosted_demo and not self.redis_url:
                 raise RuntimeError("Production requires HTTPS, Redis and MFA_ENCRYPTION_KEY")
-            if (self.demo_llm and not self.render_demo) or self.auto_migrate:
+            if (self.demo_llm and not self.hosted_demo) or self.auto_migrate:
                 raise RuntimeError("Disable DEMO_LLM and AUTO_MIGRATE in production")
             from cryptography.fernet import Fernet
 
             Fernet(self.mfa_key.encode())
-        if self.render_demo:
+        if self.hosted_demo:
             if self.sepay_environment != "test":
-                raise RuntimeError("Render demo cannot use live payments")
+                raise RuntimeError("Hosted demo cannot use live payments")
             if not 16 <= len(self.demo_owner_password) <= 128:
-                raise RuntimeError("Render demo requires DEMO_OWNER_PASSWORD with 16–128 characters")
+                raise RuntimeError("Hosted demo requires DEMO_OWNER_PASSWORD with 16–128 characters")
+        if not 60 <= self.audio_cache_ttl_seconds <= 86400:
+            raise RuntimeError("AUDIO_CACHE_TTL_SECONDS must be between 60 and 86400")
         if self.sepay_environment not in {"test", "live"}:
             raise RuntimeError("SEPAY_ENV must be test or live")
         if not self.payment_prefix.isalnum() or len(self.payment_prefix) > 10:

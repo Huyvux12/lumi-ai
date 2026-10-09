@@ -1,0 +1,100 @@
+name: Botkeep Founder Free packages
+on:
+  push:
+    branches: [Botkeep]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24, cache: npm}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_OUTPUT_STANDALONE: '1'
+          NEXT_PUBLIC_HOSTED_DEMO: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          PYTHON_API_URL: http://127.0.0.1:8000
+      - run: python deploy/botkeep/package.py
+      - run: python scripts/check_botkeep_frontend.py --zip dist/botkeep/personax-botkeep-frontend.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: botkeep-founder-free
+          path: dist/botkeep/
+          retention-days: 14
+          if-no-files-found: error
+  native-integration:
+    needs: package
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: botkeep_test
+          POSTGRES_PASSWORD: test_only
+          POSTGRES_DB: botkeep_test
+        ports: [5432:5432]
+        options: --health-cmd "pg_isready -U botkeep_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v4
+        with: {name: botkeep-founder-free, path: /tmp/botkeep-packages}
+      - name: Extract and install the packaged backend
+        run: |
+          mkdir -p /tmp/botkeep-backend /tmp/botkeep-frontend
+          unzip -q /tmp/botkeep-packages/personax-botkeep-backend.zip -d /tmp/botkeep-backend
+          unzip -q /tmp/botkeep-packages/personax-botkeep-frontend.zip -d /tmp/botkeep-frontend
+          cd /tmp/botkeep-backend
+          python -m pip install --no-cache-dir -r requirements.txt
+      - name: Generate isolated test configuration
+        run: |
+          python - <<'PY'
+          import base64, secrets
+          from pathlib import Path
+          config = {
+              "APP_ENV": "botkeep-demo", "AUTO_MIGRATE": "false", "SERVER_PORT": "18000",
+              "DATABASE_URL": "postgresql://botkeep_test:test_only@127.0.0.1:5432/botkeep_test",
+              "PUBLIC_APP_URL": "https://demo.example.com",
+              "MFA_ENCRYPTION_KEY": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
+              "DEMO_OWNER_PASSWORD": secrets.token_urlsafe(32),
+          }
+          text = "\n".join(f"{k}={v}" for k, v in config.items()) + "\n"
+          Path("/tmp/botkeep-backend/.env").write_text(text)
+          Path("/tmp/personax-demo-test.env").write_text(text)
+          Path("/tmp/botkeep-frontend/.env").write_text("SERVER_PORT=18001\nPYTHON_API_URL=http://127.0.0.1:18000\n")
+          PY
+      - name: Run native startup and real API checks through the frontend
+        run: |
+          cd /tmp/botkeep-backend
+          python botkeep_start.py > /tmp/botkeep-backend.log 2>&1 &
+          echo $! > /tmp/botkeep-backend.pid
+          cd /tmp/botkeep-frontend
+          npm start > /tmp/botkeep-frontend.log 2>&1 &
+          echo $! > /tmp/botkeep-frontend.pid
+          cd "$GITHUB_WORKSPACE"
+          python scripts/check_render_demo.py
+        env:
+          DEMO_TEST_URL: http://127.0.0.1:18001
+      - name: Process logs
+        if: failure()
+        run: |
+          cat /tmp/botkeep-backend.log /tmp/botkeep-frontend.log || true
+      - name: Clean up
+        if: always()
+        run: |
+          for file in /tmp/botkeep-backend.pid /tmp/botkeep-frontend.pid; do
+            if [ -f "$file" ]; then kill "$(cat "$file")" || true; fi
+          done
+          rm -f /tmp/personax-demo-test.env /tmp/botkeep-backend/.env /tmp/botkeep-frontend/.env

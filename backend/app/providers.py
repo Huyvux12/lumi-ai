@@ -31,7 +31,7 @@ def _json_rejected(response):
 
 
 async def generate_reply(client, settings, prompt, character, scene, history, quota):
-    if settings.sample_replies and (not settings.production or settings.render_demo):
+    if settings.sample_replies and (not settings.production or settings.hosted_demo):
         text = "Mình đang lắng nghe đây. Cậu muốn kể tiếp điều gì?"
         raw = json.dumps(
             {

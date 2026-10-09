@@ -1,0 +1,3 @@
+# Botkeep installs from the backend project root. Test tools are not installed.
+--constraint constraints-botkeep.txt
+.

@@ -123,7 +123,7 @@ async def issue_session(db, user, response, settings, mfa=False):
 
 
 async def send_auth_email(db, settings, user, purpose):
-    if settings.render_demo:
+    if settings.hosted_demo:
         fail("DEMO_EMAIL_DISABLED", "Bản demo không gửi email. Bạn có thể đăng ký và trò chuyện ngay.", 503)
     raw = secrets.token_urlsafe(32)
     db.add(

@@ -39,7 +39,7 @@ export function BillingView() {
   return <BillingAccount key={user?.id ?? "guest"} />;
 }
 function BillingAccount() {
-  const renderDemo = process.env.NEXT_PUBLIC_RENDER_DEMO === "true";
+  const renderDemo = process.env.NEXT_PUBLIC_HOSTED_DEMO === "true";
   const user = useUser();
   const ready = useAuthReady();
   const [plans, setPlans] = useState<Plan[]>([]);

@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -39,6 +40,8 @@ async def stt(
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"stt:{user.id}", 10)
+    if not shutil.which("ffmpeg"):
+        fail("PROVIDER_UNAVAILABLE", "Máy chủ chưa hỗ trợ giải mã âm thanh. Vui lòng nhập văn bản.", 503)
     mime = (file.content_type or "").split(";")[0]
     if mime not in MIMES:
         fail("INVALID_AUDIO", "Định dạng ghi âm không hỗ trợ.", 422)
@@ -131,7 +134,7 @@ async def create_tts(
         provider_voice=voice.voice,
         parts=parts,
         usage_id=usage.id,
-        expires_at=now_ms() + 86400000,
+        expires_at=now_ms() + request.app.state.settings.audio_cache_ttl_seconds * 1000,
     )
     db.add(row)
     await db.commit()

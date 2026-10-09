@@ -59,7 +59,7 @@ async def register(body: Register, request: Request, response: Response, db=Depe
     try:
         await db.flush()
         await issue_session(db, user, response, request.app.state.settings)
-        if not request.app.state.settings.render_demo:
+        if not request.app.state.settings.hosted_demo:
             await send_auth_email(db, request.app.state.settings, user, "verify")
         await db.commit()
     except IntegrityError:
@@ -132,7 +132,7 @@ class ResetInput(TokenInput):
 
 @router.post("/auth/forgot-password")
 async def forgot(body: EmailInput, request: Request, db=Depends(db_session)):
-    if request.app.state.settings.render_demo:
+    if request.app.state.settings.hosted_demo:
         fail("DEMO_EMAIL_DISABLED", "Bản demo không hỗ trợ khôi phục qua email. Hãy tạo tài khoản demo khác.", 503)
     await request.app.state.limiter.check(f"forgot:{request.client.host}", 5, 3600)
     user = (await db.execute(select(User).where(User.email == str(body.email).lower()))).scalar_one_or_none()

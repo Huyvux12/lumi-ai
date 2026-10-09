@@ -56,3 +56,6 @@ next-env.d.ts
 *.db-wal
 !/.env.example
 !/backend/.env.example
+
+/dist/
+!/deploy/botkeep/*.env.example

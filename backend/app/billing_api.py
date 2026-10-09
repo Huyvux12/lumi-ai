@@ -36,7 +36,7 @@ async def order(
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"order:{user.id}", 10)
-    if request.app.state.settings.render_demo:
+    if request.app.state.settings.hosted_demo:
         fail("DEMO_PAYMENTS_DISABLED", "Bản demo không nhận thanh toán. Không chuyển tiền thật.", 503)
     row = await create_order(db, request.app.state.settings, user, idempotency_key)
     await db.commit()
@@ -81,7 +81,7 @@ async def subscription(user=Depends(require_user), db=Depends(db_session)):
 
 @router.post("/payments/sepay/webhook")
 async def webhook(request: Request, db=Depends(db_session)):
-    if request.app.state.settings.render_demo:
+    if request.app.state.settings.hosted_demo:
         fail("DEMO_PAYMENTS_DISABLED", "Thanh toán bị tắt trong bản demo.", 503)
     raw = await request.body()
     authenticate_webhook(

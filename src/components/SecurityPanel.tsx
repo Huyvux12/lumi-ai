@@ -27,7 +27,7 @@ export function SecurityPanel() {
         Bảo mật tài khoản {user.mfa_enabled ? "· MFA đã bật" : ""}
       </summary>
       <div className="mt-4 space-y-4 text-sm">
-        {process.env.NEXT_PUBLIC_RENDER_DEMO !== "true" && !user.email_verified && (
+        {process.env.NEXT_PUBLIC_HOSTED_DEMO !== "true" && !user.email_verified && (
           <div>
             <p className="mb-2 text-fg-2">
               Xác minh email để sử dụng AI khi hệ thống được đưa lên chính thức.

@@ -27,11 +27,12 @@ def demo_settings(**overrides):
     )
 
 
-def test_demo_validation_and_production_guards(monkeypatch):
+@pytest.mark.parametrize("environment", ["render-demo", "botkeep-demo"])
+def test_demo_validation_and_production_guards(monkeypatch, environment):
     monkeypatch.delenv("PUBLIC_APP_URL", raising=False)
     monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://assigned-name.onrender.com")
     assert Settings().public_url == "https://assigned-name.onrender.com"
-    cfg = demo_settings()
+    cfg = demo_settings(environment=environment)
     cfg.validate()
     assert cfg.database_url.startswith("postgresql+asyncpg://")
     assert cfg.production and cfg.sample_replies
@@ -42,20 +43,21 @@ def test_demo_validation_and_production_guards(monkeypatch):
         {"mfa_key": ""},
         {"demo_owner_password": "short"},
         {"auto_migrate": True},
+        {"audio_cache_ttl_seconds": 0},
         {"environment": "production"},
         {"environment": "production", "redis_url": "redis://cache", "demo_llm": True},
     ):
         with pytest.raises((RuntimeError, ValueError)):
-            demo_settings(**override).validate()
+            demo_settings(**{"environment": environment, **override}).validate()
     cfg.groq_key = "configured"
     assert not cfg.sample_replies
 
 
-@pytest.fixture
-async def demo_env(env):
+@pytest.fixture(params=["render-demo", "botkeep-demo"])
+async def demo_env(env, request):
     # Reuse the SQLite/Postgres test harness while exercising hosted security.
     app, client, cfg = env
-    cfg.environment = "render-demo"
+    cfg.environment = request.param
     cfg.public_url = "https://test"
     cfg.groq_key = ""
     cfg.demo_owner_password = "A-long-demo-password-123!"
@@ -128,8 +130,21 @@ async def test_demo_owner_restart_preserves_credentials_and_mfa(demo_env):
 
 async def test_demo_bootstrap_never_promotes_existing_user(demo_env):
     app, client, cfg = demo_env
-    user = await register(client, "render_owner")
+    user = await register(client, "render_owner" if cfg.render_demo else "botkeep_owner")
     with pytest.raises(RuntimeError, match="conflicts"):
         await bootstrap_owner(cfg)
     async with app.state.db() as db:
         assert (await db.get(User, user["id"])).role == "user"
+
+
+async def test_demo_missing_ffmpeg_reports_unavailable(demo_env, monkeypatch):
+    _, client, _ = demo_env
+    await register(client)
+    monkeypatch.setattr("app.speech_api.shutil.which", lambda _: None)
+    response = await client.post(
+        "/api/v1/speech/transcriptions",
+        headers={"Idempotency-Key": "missing-decoder-123"},
+        files={"file": ("recording.wav", b"placeholder", "audio/wav")},
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "PROVIDER_UNAVAILABLE"

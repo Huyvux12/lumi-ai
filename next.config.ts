@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_HOSTED_DEMO:
+      process.env.NEXT_PUBLIC_HOSTED_DEMO ?? process.env.NEXT_PUBLIC_RENDER_DEMO ?? "false",
+  },
   ...(process.env.NEXT_OUTPUT_STANDALONE === "1"
     ? { output: "standalone" as const, cacheMaxMemorySize: 8 * 1024 * 1024 }
     : {}),
