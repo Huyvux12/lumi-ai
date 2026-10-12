@@ -2,15 +2,15 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import text
 from .config import Settings
 from .db import Base, database
-from .models import AudioJob, AuthToken, Session, Usage, now_ms
 from .security import COOKIE, RateLimiter, passwords
 from .seed import seed
+from .maintenance import cleanup_once, recover_interrupted
 from . import admin_api, auth_api, billing_api, catalog_api, chat_api, speech_api
 
 log = logging.getLogger("lumi")
@@ -68,26 +68,7 @@ async def janitor(app):
     while True:
         await asyncio.sleep(30)
         try:
-            at = now_ms()
-            async with app.state.db() as db:
-                await db.execute(delete(Session).where(Session.expires_at <= at))
-                await db.execute(delete(AuthToken).where(AuthToken.expires_at <= at))
-                await db.execute(
-                    update(Usage)
-                    .where(Usage.status == "reserved", Usage.expires_at <= at)
-                    .values(status="released")
-                )
-                expired = (
-                    (await db.execute(select(AudioJob).where(AudioJob.expires_at <= at))).scalars().all()
-                )
-                for job in expired:
-                    (app.state.settings.data_dir / "audio" / (job.id + ".pcm")).unlink(missing_ok=True)
-                    await db.delete(job)
-                live = set((await db.execute(select(AudioJob.id).where(AudioJob.expires_at > at))).scalars())
-                await db.commit()
-            for path in (app.state.settings.data_dir / "audio").iterdir():
-                if path.suffix in {".pcm", ".part"} and path.stem not in live:
-                    path.unlink(missing_ok=True)
+            await cleanup_once(app)
         except Exception:
             log.warning("Background cleanup failed")
 
@@ -106,6 +87,7 @@ def create_app(settings=None, *, transport=None):
                 await connection.run_sync(Base.metadata.create_all)
         async with factory() as db:
             await seed(db)
+        await recover_interrupted(factory)
         app.state.http = httpx.AsyncClient(
             timeout=httpx.Timeout(90, connect=15),
             transport=transport,
@@ -140,6 +122,7 @@ def create_app(settings=None, *, transport=None):
     )
     app.state.settings, app.state.db, app.state.engine = cfg, factory, engine
     app.state.chat_tasks, app.state.audio_tasks = {}, {}
+    app.state.password_slots = asyncio.Semaphore(2)
     app.add_middleware(BodyLimit)
 
     @app.middleware("http")

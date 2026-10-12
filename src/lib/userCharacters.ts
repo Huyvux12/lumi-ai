@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { getCharacter, type Character } from "./data";
+import { characters as officialCharacters, getCharacter, type Character } from "./data";
 import { api } from "./api";
 import { currentUser, useUser } from "./auth";
 export type UserCharacter = Character & {
@@ -55,7 +55,22 @@ export async function refreshCharacters() {
     notify();
   }
   if (pending) return pending;
-  pending = api<UserCharacter[]>("/characters")
+  const officialQuery = new URLSearchParams();
+  officialCharacters.forEach((c) => officialQuery.append("ids", c.id));
+  async function owned() {
+    const result: UserCharacter[] = [];
+    if (!id) return result;
+    for (let offset = 0; ; offset += 200) {
+      const page = await api<UserCharacter[]>(`/characters?mine=true&offset=${offset}`);
+      result.push(...page);
+      if (page.length < 200) return result;
+    }
+  }
+  pending = Promise.all([
+    api<UserCharacter[]>("/characters"),
+    api<UserCharacter[]>(`/characters?${officialQuery}`),
+    owned(),
+  ]).then((lists) => Array.from(new Map(lists.flat().map((c) => [c.id, c])).values()))
     .then((list) => {
       if (account === id) {
         chars = list;
@@ -80,7 +95,7 @@ export async function fetchCharacter(id: string) {
   notify();
   return c;
 }
-export async function saveUserChar(c: UserCharacter) {
+export async function saveUserChar(c: UserCharacter, exists = false) {
   const {
     name,
     tagline,
@@ -107,7 +122,6 @@ export async function saveUserChar(c: UserCharacter) {
     visibility: c.visibility ?? "private",
     voice_id: c.voice_id ?? "kore-warm",
   };
-  const exists = chars.some((x) => x.id === c.id);
   const saved = await api<UserCharacter>(
     exists ? `/characters/${c.id}` : "/characters",
     { method: exists ? "PATCH" : "POST", body: JSON.stringify(body) },
@@ -123,6 +137,10 @@ export async function uploadCharacterAvatar(file: File) {
     method: "POST",
     body,
   });
+}
+export function discardCharacterAvatar(id?: string | null) {
+  // Attached images are retained by the server; abandoned staged uploads can go.
+  if (id) void api(`/avatars/${id}`, { method: "DELETE" }).catch(() => {});
 }
 export async function deleteUserChar(id: string) {
   await api(`/characters/${id}`, { method: "DELETE" });

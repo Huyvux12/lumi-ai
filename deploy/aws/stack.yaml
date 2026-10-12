@@ -6,6 +6,12 @@ Metadata:
   com.aws.cloudformation.Context:
     ref: deploy/aws/README.md
 Parameters:
+  DesiredCountParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: /lumi/<stack-name>/desired-count, initialized by scripts/init_release_state.py. Actions publishes 1 after a verified release.
+  TaskDefinitionParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: /lumi/<stack-name>/task-definition, containing the last verified service revision. Initialized before stack creation.
   VpcId:
     Type: AWS::EC2::VPC::Id
   PublicSubnetA:
@@ -43,6 +49,7 @@ Parameters:
     AllowedPattern: 'repo:.+:ref:refs/heads/dev'
 Conditions:
   CustomSecretKey: !Not [!Equals [!Ref SecretKmsKeyArn, '']]
+  HasReleasedService: !Not [!Equals [!Ref DesiredCountParameter, '0']]
 Resources:
   # Immutable commit tags preserve reproducible releases. Retain registries on deletion.
   FrontendRepository:
@@ -218,6 +225,8 @@ Resources:
   # This is the canonical configuration. GHA copies it and replaces images by digest.
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Family: !Ref AWS::StackName
       NetworkMode: awsvpc
@@ -324,8 +333,10 @@ Resources:
       Cluster: !Ref Cluster
       LaunchType: FARGATE
       PlatformVersion: '1.4.0'
-      DesiredCount: 0
-      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref DesiredCountParameter
+      # Stack updates preserve the complete, verified image pair. Changes to
+      # canonical task configuration take effect on the next Actions release.
+      TaskDefinition: !If [HasReleasedService, !Ref TaskDefinitionParameter, !Ref TaskDefinition]
       HealthCheckGracePeriodSeconds: 120
       DeploymentConfiguration:
         DeploymentCircuitBreaker: {Enable: true, Rollback: true}
@@ -361,6 +372,11 @@ Resources:
               - Effect: Allow
                 Action: cloudformation:DescribeStacks
                 Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lumi/${AWS::StackName}/task-definition'
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lumi/${AWS::StackName}/desired-count'
               - Effect: Allow
                 Action: ecr:GetAuthorizationToken
                 Resource: '*'

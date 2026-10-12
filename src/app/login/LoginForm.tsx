@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
@@ -14,7 +13,6 @@ import { burst } from "@/lib/confetti";
 type Focus = "email" | "password" | null;
 
 export function LoginForm({ next }: { next: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [password, setPassword] = useState("");
@@ -70,8 +68,8 @@ export function LoginForm({ next }: { next: string }) {
       setDone(true);
       burst(0.72, 0.45);
       setTimeout(() => {
-        router.push(next);
-        router.refresh();
+        // A full navigation observes the new cookie instead of a cached guest redirect.
+        window.location.assign(next);
       }, 1300);
     } catch (err) {
       if (err instanceof ApiError && err.code === "MFA_REQUIRED")

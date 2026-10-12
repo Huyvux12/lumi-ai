@@ -56,3 +56,5 @@ next-env.d.ts
 *.db-wal
 !/.env.example
 !/backend/.env.example
+test-results/
+playwright-report/

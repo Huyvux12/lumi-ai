@@ -17,6 +17,7 @@ from .security import (
     fail,
     issue_session,
     passwords,
+    password_work,
     require_user,
     send_auth_email,
     verify_password,
@@ -54,7 +55,7 @@ async def register(body: Register, request: Request, response: Response, db=Depe
         email=str(body.email).lower(),
         username=body.username,
         name=body.name.strip(),
-        password_hash=passwords.hash(body.password),
+        password_hash=await password_work(request, passwords.hash, body.password),
         hue=body.hue,
         interests=body.interests,
         signup_plan=body.plan,
@@ -73,11 +74,15 @@ async def register(body: Register, request: Request, response: Response, db=Depe
 
 @router.post("/auth/login")
 async def login(body: Login, request: Request, response: Response, db=Depends(db_session)):
+    await request.app.state.limiter.check(f"login-ip:{request.client.host}", 30, 300)
+    await request.app.state.limiter.check("login-global", 300, 60)
     await request.app.state.limiter.check(f"login:{request.client.host}:{str(body.email).lower()}", 10, 300)
-    user = (await db.execute(select(User).where(User.email == str(body.email).lower()))).scalar_one_or_none()
+    # Keep password/MFA changes and session revocation serialized with validation
+    # now that Argon2 runs outside the event loop.
+    user = (await db.execute(select(User).where(User.email == str(body.email).lower()).with_for_update())).scalar_one_or_none()
     # Verify a dummy hash too, avoiding a cheap account-existence timing distinction.
     stored = user.password_hash if user else request.app.state.dummy_password
-    valid = verify_password(stored, body.password)
+    valid = await password_work(request, verify_password, stored, body.password)
     if not user or not valid or not user.active:
         fail("INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng.", 401)
     mfa = False
@@ -170,9 +175,9 @@ async def resend(request: Request, user=Depends(require_user), db=Depends(db_ses
 
 
 @router.post("/auth/reset-password")
-async def reset_password(body: ResetInput, db=Depends(db_session)):
+async def reset_password(body: ResetInput, request: Request, db=Depends(db_session)):
     user = await consume_token(db, body.token, "reset")
-    user.password_hash = passwords.hash(body.password)
+    user.password_hash = await password_work(request, passwords.hash, body.password)
     await db.execute(delete(Session).where(Session.user_id == user.id))
     await db.execute(delete(AuthToken).where(AuthToken.user_id == user.id, AuthToken.purpose == "reset"))
     await db.commit()
@@ -192,7 +197,7 @@ async def mfa_setup(
     body: PasswordInput, request: Request, user=Depends(require_user), db=Depends(db_session)
 ):
     await request.app.state.limiter.check(f"mfa:{user.id}", 10, 300)
-    if user.mfa_enabled or not verify_password(user.password_hash, body.password):
+    if user.mfa_enabled or not await password_work(request, verify_password, user.password_hash, body.password):
         fail("INVALID_CREDENTIALS", "MFA đã bật hoặc mật khẩu không đúng.", 400)
     secret = base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
     user.mfa_secret = encryption(request.app.state.settings).encrypt(secret.encode()).decode()

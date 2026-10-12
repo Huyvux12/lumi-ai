@@ -12,7 +12,7 @@ from .catalog_api import own_conversation
 from .models import AudioJob, Character, Message, Usage, Voice, now_ms
 from .prompts import speech_parts
 from .providers import normalize_audio, transcribe, tts_stream
-from .quotas import entitlement, finish, reserve
+from .quotas import entitlement, finish, reserve, usage_lease
 from .schemas import TTSInput
 from .security import db_session, fail, require_feature_user, require_user
 
@@ -63,9 +63,10 @@ async def stt(
         fail("KEY_CONFLICT", "Bản ghi âm này đã được xử lý. Vui lòng kiểm tra ô nhập.", 409)
     await db.commit()
     try:
-        text, meta = await transcribe(
-            request.app.state.http, request.app.state.settings, content, "recording.wav", "audio/wav"
-        )
+        async with usage_lease(request.app.state.db, usage.id):
+            text, meta = await transcribe(
+                request.app.state.http, request.app.state.settings, content, "recording.wav", "audio/wav"
+            )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=meta)
         return {"text": text}
     except BaseException:
@@ -165,7 +166,8 @@ async def audio(ident: str, request: Request, user=Depends(require_feature_user)
     # Enter the upstream context before sending HTTP 200 so configuration errors are real HTTP errors.
     context = tts_stream(request.app.state.http, request.app.state.settings, row.parts, row.provider_voice)
     try:
-        chunks = await context.__aenter__()
+        async with usage_lease(request.app.state.db, row.usage_id):
+            chunks = await context.__aenter__()
     except BaseException:
         row.status = "failed"
         await db.commit()
@@ -180,55 +182,53 @@ async def audio(ident: str, request: Request, user=Depends(require_feature_user)
         request.app.state.audio_tasks[row.id] = task
         temporary = path.with_suffix(".part")
         try:
-            with temporary.open("wb") as out:
-                async for chunk in chunks:
-                    if await request.is_disconnected():
-                        return
-                    if time.monotonic() - checked_at >= 0.25:
-                        async with request.app.state.db() as check:
-                            current = await check.get(AudioJob, row.id)
-                            if not current or current.status != "streaming":
-                                return
-                            reservation = await check.get(Usage, row.usage_id)
-                            if reservation and reservation.status == "reserved":
-                                reservation.expires_at = now_ms() + 120000
-                                await check.commit()
-                        checked_at = time.monotonic()
-                    remaining = max_bytes - received
-                    if len(chunk) > remaining:
-                        raise ValueError("Audio exceeds reserved duration")
-                    chunk = chunk[: remaining - remaining % 2]
-                    if not chunk:
-                        break
-                    received += len(chunk)
-                    out.write(chunk)
-                    yield chunk
-                complete = received > 0
+            async with usage_lease(request.app.state.db, row.usage_id):
+                with temporary.open("wb") as out:
+                    async for chunk in chunks:
+                        if await request.is_disconnected():
+                            return
+                        if time.monotonic() - checked_at >= 0.25:
+                            async with request.app.state.db() as check:
+                                current = await check.get(AudioJob, row.id)
+                                if not current or current.status != "streaming":
+                                    return
+                            checked_at = time.monotonic()
+                        remaining = max_bytes - received
+                        if len(chunk) > remaining:
+                            raise ValueError("Audio exceeds reserved duration")
+                        chunk = chunk[: remaining - remaining % 2]
+                        if not chunk:
+                            break
+                        received += len(chunk)
+                        out.write(chunk)
+                        yield chunk
+                    complete = received > 0
             if complete:
                 temporary.replace(path)
         finally:
             request.app.state.audio_tasks.pop(row.id, None)
             temporary.unlink(missing_ok=True)
-            await context.__aexit__(None, None, None)
-
             async def cleanup():
-                async with request.app.state.db() as update:
-                    current = await update.get(AudioJob, row.id)
-                    if current:
-                        current.status = (
-                            "complete"
-                            if complete
-                            else ("cancelled" if current.status == "cancelled" else "failed")
-                        )
-                        current.duration_ms = received // 48
+                try:
+                    await context.__aexit__(None, None, None)
+                finally:
+                    async with request.app.state.db() as update:
+                        reservation = await update.get(Usage, row.usage_id, with_for_update=True)
+                        valid = bool(reservation and reservation.status == "reserved" and reservation.expires_at > now_ms())
+                        current = await update.get(AudioJob, row.id, with_for_update=True)
+                        if current:
+                            current.status = (
+                                "complete" if complete and valid
+                                else ("cancelled" if current.status == "cancelled" else "failed")
+                            )
+                            current.duration_ms = received // 48
+                        if reservation and reservation.status == "reserved":
+                            reservation.status = "committed" if received > 0 and valid else "released"
+                            reservation.secondary = received // 48
+                            reservation.provider_usage = {"pcm_bytes": received, "model": request.app.state.settings.tts_model}
                         await update.commit()
-                await finish(
-                    request.app.state.db,
-                    row.usage_id,
-                    success=received > 0,
-                    secondary=received // 48,
-                    provider_usage={"pcm_bytes": received, "model": request.app.state.settings.tts_model},
-                )
+                        if not valid:
+                            path.unlink(missing_ok=True)
 
             await asyncio.shield(cleanup())
 

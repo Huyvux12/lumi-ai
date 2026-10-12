@@ -5,6 +5,7 @@ import { Check, CreditCard, Copy, QrCode } from "lucide-react";
 import { api, mutation, requestId } from "@/lib/api";
 import { refreshUser, useAuthReady, useUser } from "@/lib/auth";
 import type { PublicPlan } from "@/lib/plans";
+import { shouldPollOrder, BILLING_POLL_WINDOW_MS } from "@/lib/billing";
 type Quote = {
   amount_vnd: number;
   list_price_vnd: number;
@@ -90,7 +91,7 @@ function BillingAccount({ initialPromo }: { initialPromo: string }) {
         .then((list) => {
           if (live) {
             setHistory(list);
-            setOrder(list.find((o) => o.status === "pending") ?? null);
+            setOrder(list.find((o) => shouldPollOrder(o)) ?? list.find((o) => ["expired", "review"].includes(o.status)) ?? null);
           }
         })
         .catch((e) => {
@@ -108,8 +109,9 @@ function BillingAccount({ initialPromo }: { initialPromo: string }) {
   }, [ready, user]);
   const orderId = order?.id;
   const orderStatus = order?.status;
+  const orderCreatedAt = order?.created_at;
   useEffect(() => {
-    if (!orderId || orderStatus !== "pending") return;
+    if (!orderId || !orderStatus || !orderCreatedAt || !shouldPollOrder({ status: orderStatus, created_at: orderCreatedAt })) return;
     let live = true;
     let failures = 0;
     const poll = async () => {
@@ -138,13 +140,30 @@ function BillingAccount({ initialPromo }: { initialPromo: string }) {
       }
     };
     const timer = setInterval(() => {
+      if (Date.now() >= orderCreatedAt + BILLING_POLL_WINDOW_MS) {
+        clearInterval(timer);
+        return;
+      }
       void poll();
     }, 3000);
     return () => {
       live = false;
       clearInterval(timer);
     };
-  }, [orderId, orderStatus]);
+  }, [orderId, orderStatus, orderCreatedAt]);
+  async function refreshPayment() {
+    if (!order || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setOrder(await api<Order>(`/billing/orders/${order.id}`));
+      await refreshUser();
+      const [s, list] = await Promise.all([api<Subscription>("/billing/subscription"), api<Order[]>("/billing/history")]);
+      setSubscription(s);
+      setHistory(list);
+    } catch (error) { setError(error instanceof Error ? error.message : "Không thể kiểm tra thanh toán."); }
+    finally { setBusy(false); }
+  }
   async function applyCode() {
     if (!user || busy) return;
     setBusy(true);
@@ -383,6 +402,7 @@ function BillingAccount({ initialPromo }: { initialPromo: string }) {
           <p className="mt-2 text-accent">
             {statuses[order.status] ?? order.status}
           </p>
+          {["pending", "expired", "review"].includes(order.status) && <button disabled={busy} onClick={() => void refreshPayment()} className="mt-3 text-accent">Kiểm tra lại thanh toán</button>}
           {order.promo_code && (
             <p className="mt-3 text-sm">
               Mã {order.promo_code} · Giảm {order.discount_percent}% từ{" "}

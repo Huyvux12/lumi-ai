@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import Response
 from sqlalchemy import delete, func, select
 from .billing import apply_payment
 from .catalog_api import character_view
 from .models import (
     Audit,
     Character,
+    CharacterAvatar,
     Conversation,
     Order,
     PaymentEvent,
@@ -358,6 +360,29 @@ async def characters(user=Depends(require_staff), db=Depends(db_session)):
     ]
 
 
+@router.get("/characters/{ident}/preview")
+async def preview_character(ident: str, user=Depends(require_staff), db=Depends(db_session)):
+    row = await db.get(Character, ident)
+    if not row or (row.owner_id and row.visibility != "public"):
+        fail("NOT_FOUND", "Không tìm thấy nhân vật trong danh mục quản trị.", 404)
+    result = await character_view(db, row)
+    if row.data.get("avatar_id"):
+        result["image"] = f"/api/v1/admin/avatars/{row.data['avatar_id']}"
+    return result
+
+
+@router.get("/avatars/{ident}")
+async def preview_avatar(ident: str, user=Depends(require_staff), db=Depends(db_session)):
+    character = await db.scalar(select(Character.id).where(
+        Character.data["avatar_id"].as_string() == ident,
+        Character.visibility == "public",
+    ).limit(1))
+    avatar = await db.get(CharacterAvatar, ident) if character else None
+    if not avatar:
+        fail("NOT_FOUND", "Không tìm thấy ảnh trong danh mục quản trị.", 404)
+    return Response(avatar.content, media_type="image/webp")
+
+
 class ModerationInput(Reason):
     status: str = Field(pattern=r"^(approved|hidden|pending)$")
 
@@ -516,7 +541,7 @@ async def test_prompt(
     ident: str, body: PromptTestInput, request: Request, user=Depends(require_admin), db=Depends(db_session)
 ):
     from .providers import generate_reply
-    from .quotas import PREMIUM, finish, reserve
+    from .quotas import PREMIUM, finish, reserve, usage_lease
     from .catalog_api import accessible_character
 
     prompt = await db.get(Prompt, ident)
@@ -528,15 +553,16 @@ async def test_prompt(
     audit(db, user, "prompt.test", ident, {"character_id": character.id})
     await db.commit()
     try:
-        segments, meta = await generate_reply(
-            request.app.state.http,
-            request.app.state.settings,
-            prompt,
-            character,
-            None,
-            [{"role": "user", "content": body.text}],
-            PREMIUM,
-        )
+        async with usage_lease(request.app.state.db, usage.id):
+            segments, meta = await generate_reply(
+                request.app.state.http,
+                request.app.state.settings,
+                prompt,
+                character,
+                None,
+                [{"role": "user", "content": body.text}],
+                PREMIUM,
+            )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=meta)
         return {"segments": [{k: v for k, v in s.items() if k != "tts_text"} for s in segments]}
     except BaseException:

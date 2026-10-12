@@ -2,11 +2,11 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import json
 import secrets
 import smtplib
 import struct
 import time
+from functools import partial
 from collections import OrderedDict
 from email.message import EmailMessage
 from urllib.parse import quote
@@ -89,6 +89,28 @@ def verify_password(stored: str, supplied: str):
         return passwords.verify(stored, supplied)
     except VerificationError:
         return False
+
+
+async def password_work(request, function, *args):
+    # Reject excess work rather than queue unbounded Argon2 allocations. This
+    # semaphore is application-local; Redis throttles requests across instances.
+    slots = request.app.state.password_slots
+    if slots.locked():
+        fail("RATE_LIMIT", "Bạn thao tác quá nhanh. Vui lòng thử lại sau.", 429)
+    await slots.acquire()
+    try:
+        future = asyncio.get_running_loop().run_in_executor(None, partial(function, *args))
+    except BaseException:
+        slots.release()
+        raise
+    # A disconnected request must not release a slot while its thread still runs.
+    def completed(result):
+        slots.release()
+        if not result.cancelled():
+            result.exception()  # Consume failures even after the caller disconnects.
+
+    future.add_done_callback(completed)
+    return await asyncio.shield(future)
 
 
 def encryption(settings):

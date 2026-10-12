@@ -22,9 +22,8 @@ Terminal 1:
 
 ```bash
 cd backend
-python3 -m venv .venv
+uv sync --locked --extra test --python 3.12
 source .venv/bin/activate
-pip install -e '.[test]'
 cp .env.example .env
 python -m alembic upgrade head
 python -m app.cli seed
@@ -176,16 +175,25 @@ Reverse proxy phải giữ cookie, raw webhook body và SSE/audio streaming; t�
 npm run typecheck
 npm run lint
 npm run build
+npm test
+npm run test:browser
 cd backend
-python -m pytest -q
-python -m alembic check
+uv run --locked --extra test python -m pytest -q
+uv run --locked --extra test python -m alembic check
 ```
 
-36 kiểm tra API chạy qua với database SQLite riêng từng test, HTTP transport mô phỏng provider và WAV được ffmpeg giải mã thật. Bao gồm isolation giữa người dùng, session/CSRF, reset/MFA, quota đồng thời, QR/HMAC/webhook trùng/sai, calendar month/renewal, snapshot gói, RBAC, prompt version/audit, STT, TTS dialogue-only/PCM/cache/cancel và lỗi provider. Migrations nâng cấp và `alembic check` đã qua. Frontend typecheck/lint/build đã qua. Kiểm tra HTTP thực tế qua Next rewrites cũng đã xác nhận cookie, chat SSE, PCM, QR/webhook, Premium, RBAC và logout bằng local mock harness (`scripts/check_bridge.py`).
+Kiểm tra backend dùng provider mock và database riêng, bao gồm auth/CSRF/MFA,
+quota/lease, phục hồi yêu cầu bị gián đoạn, ảnh nhân vật, scenario, phân trang,
+quyền kiểm duyệt và đối soát. CI chạy trên SQLite và PostgreSQL. Browser tests
+chạy build standalone với backend mock riêng, kiểm tra proxy chậm, đăng nhập,
+ảnh/scenario, kiểm duyệt và xác nhận thanh toán muộn. Chúng không gửi giao dịch
+thật hoặc gọi provider bằng credentials dự án.
 
-Chưa thực hiện giao dịch tiền thật hay gọi Groq/Gemini bằng credential của dự án. Chưa chạy production PostgreSQL/Redis/Docker và chưa kiểm tra giao diện bằng browser trong môi trường làm việc này (localhost bị chặn). Trước launch, chạy các ca tích hợp với chính account SePay/Groq/Google, kiểm tra upload/ghi âm/audio trên thiết bị mục tiêu và đối chiếu chi phí thực tế. Model TTS/khả năng tài khoản phải khớp handoff của bạn.
-
-Dữ liệu demo cũ trong localStorage không tự chuyển sang database; frontend không dùng nó làm quyền đăng nhập hoặc lịch sử. Draft tạo nhân vật được lưu riêng theo user ID trên trình duyệt. Bộ import dữ liệu cũ, streaming JSON incremental từ LLM, latency telemetry chi tiết, WAV fallback cho trình duyệt không có Web Audio và quy trình xóa tài khoản/retention sẽ cần bước tiếp theo nếu bạn muốn đưa toàn bộ checklist dài trong `plan.md` lên production.
+Cài Chromium cho lần đầu: `npx playwright install chromium`. Browser tests cần
+`uv sync --locked --extra test --python 3.12 --directory backend` và `npm run build`.
+Backend CI/Docker dùng `backend/uv.lock`; cập nhật có chủ đích bằng `uv lock`, rồi
+chạy lại bộ kiểm tra. Ảnh chưa gắn được dọn sau 24 giờ; mỗi tài khoản tối đa 40 ảnh
+và 32 MiB. Ảnh thay/xóa được xóa khi không còn nhân vật tham chiếu.
 
 ## Tài liệu tích hợp
 

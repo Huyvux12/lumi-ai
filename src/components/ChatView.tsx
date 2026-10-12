@@ -78,6 +78,7 @@ function ChatSession({
     "off" | "listening" | "thinking" | "speaking"
   >("off");
   const [older, setOlder] = useState(false);
+  const olderBusy = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const transcriptionRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -133,6 +134,7 @@ function ChatSession({
     const callVersions = callEpoch;
     const version = ++versions.current;
     conversationRef.current = null;
+    lastRequest.current = null;
     busy.current = false;
     // Reset view when the authenticated account or character changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -164,6 +166,14 @@ function ChatSession({
                 : [{ role: "assistant", content: c.greeting }],
             );
             setOlder(saved.length === 100);
+            const last = saved.at(-1);
+            if (last && ["failed", "interrupted"].includes(last.status ?? "")) {
+              const sent = saved.find((m) => m.id === last.reply_to) ?? saved.findLast((m) => m.role === "user");
+              if (sent) {
+                lastRequest.current = { text: sent.content, userId: sent.id };
+                setError("Phản hồi trước đã dừng. Bạn có thể thử lại.");
+              }
+            }
           }
         })
         .catch((e) => {
@@ -241,7 +251,7 @@ function ChatSession({
     abortRef.current = ctrl;
     answerRef.current = null;
     const base = retryMessageId
-      ? messages.filter((m) => m.id !== retryMessageId || m.role === "user")
+      ? messages.filter((m) => !(m.role === "assistant" && m.reply_to === retryMessageId && ["failed", "interrupted"].includes(m.status ?? "")))
       : [...messages, { role: "user" as const, content: text }];
     setMessages([
       ...base,
@@ -466,15 +476,20 @@ function ChatSession({
     inputRef.current?.focus();
   }
   async function loadOlder() {
-    if (!conversationRef.current || !messages[0]?.created_at) return;
+    if (olderBusy.current || !conversationRef.current || !messages[0]?.created_at || !messages[0]?.id) return;
+    olderBusy.current = true;
+    const version = epoch.current;
     try {
       const list = await api<ChatMessage[]>(
-        `/conversations/${conversationRef.current}/messages?before=${messages[0].created_at}`,
+        `/conversations/${conversationRef.current}/messages?before=${messages[0].created_at}&before_id=${encodeURIComponent(messages[0].id)}`,
       );
+      if (version !== epoch.current) return;
       setMessages((old) => [...list, ...old]);
       setOlder(list.length === 100);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể tải tin nhắn.");
+      if (version === epoch.current) setError(e instanceof Error ? e.message : "Không thể tải tin nhắn.");
+    } finally {
+      olderBusy.current = false;
     }
   }
   async function transcribe(blob: Blob, filename: string) {

@@ -5,7 +5,7 @@ import asyncio
 import logging
 import re
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, func
 from .billing import apply_payment
 from .config import Settings
 from .db import database
@@ -32,21 +32,37 @@ async def reconcile_once(cfg, factory, client):
                         Order.status.in_(["pending", "expired", "review"]),
                         Order.created_at > now_ms() - 7 * 86400000,
                     )
-                    .order_by(Order.created_at)
+                    .order_by(func.coalesce(Order.reconciled_at, 0), Order.created_at, Order.id)
                     .limit(100)
                 )
             ).scalars()
         )
     matched = 0
     for order in orders:
-        result = await client.get(
-            root + "/transactions",
-            headers={"Authorization": f"Bearer {cfg.sepay_token}"},
-            params={"q": order.invoice, "per_page": 100, "transfer_type": "in"},
-        )
-        if result.status_code != 200:
-            raise RuntimeError("SePay reconciliation is temporarily unavailable")
-        for tx in result.json().get("data", []):
+        # Record attempted work before contacting the provider: one broken invoice
+        # or failed request must not monopolize every subsequent batch.
+        async with factory() as db:
+            current = await db.get(Order, order.id, with_for_update=True)
+            if not current or current.status not in {"pending", "expired", "review"}:
+                continue
+            current.reconciled_at = now_ms()
+            await db.commit()
+        transactions, page = [], 1
+        while True:
+            result = await client.get(
+                root + "/transactions",
+                headers={"Authorization": f"Bearer {cfg.sepay_token}"},
+                params={"q": order.invoice, "per_page": 100, "transfer_type": "in", "page": page},
+            )
+            await asyncio.sleep(0.5)
+            if result.status_code != 200:
+                raise RuntimeError("SePay reconciliation is temporarily unavailable")
+            rows = result.json().get("data", [])
+            transactions.extend(rows)
+            if len(rows) < 100:
+                break
+            page += 1
+        for tx in transactions:
             content = str(tx.get("transaction_content") or "")
             if not re.search(r"(?<![A-Z0-9])" + re.escape(order.invoice) + r"(?![A-Z0-9])", content.upper()):
                 continue
@@ -64,8 +80,6 @@ async def reconcile_once(cfg, factory, client):
                 event = await apply_payment(db, cfg, payload)
                 matched += event.status == "applied"
                 await db.commit()
-        # SePay v2 rate limit: leave room for webhook/admin traffic and all pagination queries.
-        await asyncio.sleep(0.5)
     return matched
 
 

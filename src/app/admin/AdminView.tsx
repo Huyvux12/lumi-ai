@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
 import { SecurityPanel } from "@/components/SecurityPanel";
+import { Portrait } from "@/components/Portrait";
 import type { UserCharacter } from "@/lib/userCharacters";
 import type { Scene } from "@/lib/data";
 type AdminUser = {
@@ -96,6 +97,25 @@ const allTabs = [
 ] as const;
 type Tab = (typeof allTabs)[number][0];
 const field = "field w-full";
+function ModerationPreview({ id }: { id: string }) {
+  const [character, setCharacter] = useState<UserCharacter | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    setBusy(true);
+    try { setCharacter(await api<UserCharacter>(`/admin/characters/${id}/preview`)); }
+    catch (error) { setError(error instanceof Error ? error.message : "Không thể xem nhân vật."); }
+    finally { setBusy(false); }
+  }
+  return <div className="w-full">
+    <button className="text-accent" disabled={busy} onClick={() => void load()}>{busy ? "Đang tải…" : "Xem hồ sơ & ảnh"}</button>
+    {error && <p role="alert">{error}</p>}
+    {character && <div className="mt-3 space-y-3">
+      <Portrait seed={character.seed ?? character.id} hue={character.hue} image={character.image} className="size-32 rounded-xl" />
+      {[["Mô tả", character.description], ["Tính cách", character.persona], ["Scenario", character.scenario], ["Lời chào", character.greeting]].map(([label, value]) => <p className="whitespace-pre-wrap" key={label}><strong>{label}: </strong>{value || "—"}</p>)}
+    </div>}
+  </div>;
+}
 function PlanAvailabilityForm({
   plan,
   busy,
@@ -810,9 +830,9 @@ function AdminAccount() {
               className="glass flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4"
             >
               <div>
-                <Link href={`/character/${c.id}`} className="font-semibold">
+                <span className="font-semibold">
                   {c.name}
-                </Link>
+                </span>
                 <p className="mt-1 text-sm text-fg-2">
                   {c.owner ? "Cộng đồng" : "Chính thức"} · {c.status} ·{" "}
                   {c.tagline}
@@ -869,6 +889,7 @@ function AdminAccount() {
                   </button>
                 )}
               </div>
+              <ModerationPreview id={c.id} />
             </section>
           ))}
         </div>

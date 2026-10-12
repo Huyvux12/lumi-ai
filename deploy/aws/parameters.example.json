@@ -8,5 +8,7 @@
   {"ParameterKey": "CertificateArn", "ParameterValue": "<validated-regional-acm-certificate-arn>"},
   {"ParameterKey": "PublicAppUrl", "ParameterValue": "https://<your-dev-domain>"},
   {"ParameterKey": "BackendSecretArn", "ParameterValue": "<backend-json-secret-arn>"},
-  {"ParameterKey": "SecretKmsKeyArn", "ParameterValue": ""}
+  {"ParameterKey": "SecretKmsKeyArn", "ParameterValue": ""},
+  {"ParameterKey": "DesiredCountParameter", "ParameterValue": "/lumi/<stack-name>/desired-count"},
+  {"ParameterKey": "TaskDefinitionParameter", "ParameterValue": "/lumi/<stack-name>/task-definition"}
 ]

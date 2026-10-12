@@ -1,23 +1,16 @@
-import unicodedata
+import json
 from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import func, or_, select
 from .models import Character, CharacterAvatar, Conversation, Message, Report, Scene, Voice, now_ms, uid
-from .avatars import read_avatar, require_owned_avatar
+from .avatars import read_avatar, require_owned_avatar, delete_unused_avatar, avatar_referenced, MAX_ACCOUNT_AVATARS, MAX_ACCOUNT_BYTES
+from .search import normalized
 from .quotas import entitlement
 from .schemas import CharacterInput, ConversationInput, Input
 from .security import db_session, fail, lock_user, optional_user, require_feature_user, require_user
 from pydantic import Field
 
 router = APIRouter()
-
-
-def normalized(text):
-    return "".join(
-        c
-        for c in unicodedata.normalize("NFD", text.lower().replace("đ", "d"))
-        if not unicodedata.combining(c)
-    )
 
 
 async def accessible_character(db, ident, user):
@@ -54,7 +47,12 @@ async def upload_avatar(
     request: Request, file: UploadFile, user=Depends(require_feature_user), db=Depends(db_session)
 ):
     await request.app.state.limiter.check(f"avatar:{user.id}", 30, 3600)
-    avatar = CharacterAvatar(owner_id=user.id, content=await read_avatar(file))
+    content = await read_avatar(file)
+    await lock_user(db, user.id)
+    count, size = (await db.execute(select(func.count(), func.coalesce(func.sum(func.length(CharacterAvatar.content)), 0)).where(CharacterAvatar.owner_id == user.id))).one()
+    if count >= MAX_ACCOUNT_AVATARS or size + len(content) > MAX_ACCOUNT_BYTES:
+        fail("AVATAR_QUOTA_REACHED", "Kho ảnh đã đầy. Xóa hoặc thay ảnh nhân vật trước khi tải thêm.", 429)
+    avatar = CharacterAvatar(owner_id=user.id, content=content)
     db.add(avatar)
     await db.commit()
     return {"avatar_id": avatar.id, "image": f"/api/v1/avatars/{avatar.id}"}
@@ -80,11 +78,28 @@ async def avatar_image(ident: str, user=Depends(optional_user), db=Depends(db_se
     return Response(avatar.content, media_type="image/webp")
 
 
+@router.delete("/avatars/{ident}")
+async def delete_avatar(ident: str, user=Depends(require_user), db=Depends(db_session)):
+    await lock_user(db, user.id)
+    avatar = await db.get(CharacterAvatar, ident)
+    if not avatar or avatar.owner_id != user.id:
+        fail("NOT_FOUND", "Không tìm thấy ảnh đại diện.", 404)
+    if await db.scalar(select(avatar_referenced()).where(CharacterAvatar.id == ident)):
+        fail("AVATAR_IN_USE", "Ảnh đang được nhân vật sử dụng.", 409)
+    await db.delete(avatar)
+    await db.commit()
+    return {"ok": True}
+
+
 @router.get("/characters")
 async def characters(
     q: str = Query(default="", max_length=100),
     tag: str = Query(default="", max_length=30),
     mine: bool = False,
+    official: bool = False,
+    ids: list[str] = Query(default=[], max_length=100),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=200),
     user=Depends(optional_user),
     db=Depends(db_session),
 ):
@@ -98,28 +113,19 @@ async def characters(
             | (Character.owner_id == user.id if user else False)
         )
     )
-    rows = (
-        (
-            await db.execute(
-                select(Character).where(condition).order_by(Character.updated_at.desc()).limit(200)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    needle = normalized(q)
-    rows = [
-        c
-        for c in rows
-        if (
-            not needle
-            or needle
-            in normalized(
-                " ".join(str(c.data.get(k, "")) for k in ("name", "tagline", "description", "tags"))
-            )
-        )
-        and (not tag or tag in c.data.get("tags", []))
-    ]
+    query = select(Character).where(condition)
+    if official:
+        query = query.where(Character.owner_id.is_(None))
+    if ids:
+        query = query.where(Character.id.in_(ids))
+    if q:
+        query = query.where(Character.search_text.contains(normalized(q), autoescape=True))
+    if tag:
+        # Search complete JSON string tokens, with case-sensitive position functions.
+        position = func.strpos if db.get_bind().dialect.name == "postgresql" else func.instr
+        query = query.where(position(Character.tags_text, json.dumps(tag)) > 0)
+    query = query.order_by(Character.updated_at.desc(), Character.id.desc())
+    rows = (await db.execute(query.offset(offset).limit(limit))).scalars().all()
     return [await character_view(db, c) for c in rows]
 
 
@@ -158,10 +164,12 @@ async def create_character(body: CharacterInput, user=Depends(require_feature_us
 async def edit_character(
     ident: str, body: CharacterInput, user=Depends(require_feature_user), db=Depends(db_session)
 ):
+    await lock_user(db, user.id)
     c = await accessible_character(db, ident, user)
     if c.owner_id != user.id:
         fail("FORBIDDEN", "Bạn không có quyền sửa nhân vật này.", 403)
-    avatar_id = body.avatar_id if "avatar_id" in body.model_fields_set else c.data.get("avatar_id")
+    old_avatar = c.data.get("avatar_id")
+    avatar_id = body.avatar_id if "avatar_id" in body.model_fields_set else old_avatar
     await require_owned_avatar(db, avatar_id, user)
     voice = await db.get(Voice, body.voice_id)
     if not voice or not voice.enabled:
@@ -173,16 +181,23 @@ async def edit_character(
     c.visibility, c.voice_id = body.visibility, body.voice_id
     c.status = "pending" if body.visibility == "public" else "approved"
     c.updated_at = now_ms()
+    await db.flush()
+    if old_avatar != avatar_id:
+        await delete_unused_avatar(db, old_avatar, user.id)
     await db.commit()
     return await character_view(db, c)
 
 
 @router.delete("/characters/{ident}")
 async def delete_character(ident: str, user=Depends(require_user), db=Depends(db_session)):
+    await lock_user(db, user.id)
     c = await accessible_character(db, ident, user)
     if c.owner_id != user.id:
         fail("FORBIDDEN", "Bạn không có quyền xóa nhân vật này.", 403)
+    avatar_id = c.data.get("avatar_id")
     await db.delete(c)
+    await db.flush()
+    await delete_unused_avatar(db, avatar_id, user.id)
     await db.commit()
     return {"ok": True}
 
@@ -243,15 +258,19 @@ def message_view(message):
         "segments": [{k: v for k, v in s.items() if k != "tts_text"} for s in message.segments],
         "status": message.status,
         "created_at": message.created_at,
+        "reply_to": message.reply_to,
     }
 
 
 @router.get("/conversations/{ident}/messages")
-async def messages(ident: str, before: int | None = None, user=Depends(require_user), db=Depends(db_session)):
+async def messages(ident: str, before: int | None = None, before_id: str | None = Query(default=None, max_length=36), user=Depends(require_user), db=Depends(db_session)):
     await own_conversation(db, ident, user)
     query = select(Message).where(Message.conversation_id == ident)
-    if before:
-        query = query.where(Message.created_at < before)
+    if before is not None:
+        condition = Message.created_at < before
+        if before_id:
+            condition = or_(condition, (Message.created_at == before) & (Message.id < before_id))
+        query = query.where(condition)
     rows = (
         (await db.execute(query.order_by(Message.created_at.desc(), Message.id.desc()).limit(100)))
         .scalars()

@@ -35,6 +35,7 @@ BASE = {
     ],
 }
 ENV = {
+    "AWS_STACK_NAME": "lumi-dev",
     "ECS_CLUSTER": "cluster",
     "ECS_SERVICE": "service",
     "ECS_TASK_DEFINITION": "base",
@@ -54,6 +55,11 @@ class DeploymentTests(unittest.TestCase):
         def fake_aws(*args):
             calls.append(args)
             operation = args[1]
+            if operation == "describe-stacks":
+                return {"Stacks": [{"Parameters": [
+                    {"ParameterKey": "DesiredCountParameter", "ParameterValue": "/lumi/lumi-dev/desired-count"},
+                    {"ParameterKey": "TaskDefinitionParameter", "ParameterValue": "/lumi/lumi-dev/task-definition"},
+                ]}]}
             if operation == "describe-task-definition":
                 return {"taskDefinition": BASE}
             if operation == "register-task-definition":
@@ -107,6 +113,12 @@ class DeploymentTests(unittest.TestCase):
                 return calls, error
         return calls, None
 
+    def test_missing_or_mismatched_release_parameters_fail_before_migration(self):
+        for parameters in ([], [{"ParameterKey": "DesiredCountParameter", "ParameterValue": "/wrong/path"}]):
+            with self.subTest(parameters=parameters):
+                with self.assertRaises(ValueError):
+                    deploy.validate_release_parameters({"Parameters": parameters}, "lumi-dev")
+
     def test_backend_only_migration_preserves_secret_references(self):
         service, migration = deploy.definitions(
             BASE, ENV["FRONTEND_IMAGE"], ENV["BACKEND_IMAGE"]
@@ -130,7 +142,11 @@ class DeploymentTests(unittest.TestCase):
         self.assertLess(
             operations.index("describe-tasks"), operations.index("update-service")
         )
-        self.assertEqual(operations[-1], "describe-services")
+        self.assertEqual(operations[-3:], ["describe-services", "put-parameter", "put-parameter"])
+        published = [call for call in calls if call[0] == "ssm"]
+        self.assertIn("/lumi/lumi-dev/task-definition", published[0])
+        self.assertIn("new-service", published[0])
+        self.assertIn("/lumi/lumi-dev/desired-count", published[1])
 
     def test_failed_migration_never_updates_service(self):
         for options in (
@@ -150,9 +166,10 @@ class DeploymentTests(unittest.TestCase):
         self.assertFalse(any(call[1] == "update-service" for call in calls))
 
     def test_stable_rollback_is_reported_as_failure(self):
-        _, error = self.run_deploy(rollback=True)
+        calls, error = self.run_deploy(rollback=True)
         self.assertIsInstance(error, RuntimeError)
         self.assertIn("requested revision", str(error))
+        self.assertFalse(any(call[0] == "ssm" for call in calls))
 
 
 if __name__ == "__main__":

@@ -1,11 +1,70 @@
-from datetime import datetime, timezone
+import asyncio
+from contextlib import asynccontextmanager
+from datetime import datetime
 from zoneinfo import ZoneInfo
-from sqlalchemy import select
+from sqlalchemy import select, update
 from .models import Plan, Subscription, Usage, User, now_ms
 from .plan_access import PLAN_REQUIRED_MESSAGE, require_plan_open
 from .security import fail, lock_user
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
+LEASE_MS = 120000
+LEASE_HEARTBEAT_SECONDS = 20
+
+
+class UsageExpired(RuntimeError):
+    pass
+
+
+@asynccontextmanager
+async def usage_lease(factory, usage_id):
+    """Renew independently of provider chunks; losing the lease stops its owner."""
+    owner = asyncio.current_task()
+    lost = False
+
+    async def renew():
+        at = now_ms()
+        async with factory() as db:
+            result = await db.execute(
+                update(Usage).where(
+                    Usage.id == usage_id, Usage.status == "reserved", Usage.expires_at > at
+                ).values(expires_at=at + LEASE_MS)
+            )
+            await db.commit()
+            if result.rowcount != 1:
+                raise UsageExpired("Usage lease expired")
+
+    try:
+        await renew()
+    except UsageExpired:
+        fail("REQUEST_EXPIRED", "Yêu cầu đã hết hạn. Vui lòng thử lại.", 409)
+
+    async def heartbeat():
+        nonlocal lost
+        try:
+            while True:
+                await asyncio.sleep(LEASE_HEARTBEAT_SECONDS)
+                if owner.done():
+                    # A response can fail before its suspended iterator is closed.
+                    # Never keep an abandoned reservation alive indefinitely.
+                    return
+                await renew()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            lost = True
+            owner.cancel()
+
+    task = asyncio.create_task(heartbeat())
+    try:
+        yield
+    except asyncio.CancelledError:
+        if lost:
+            fail("REQUEST_EXPIRED", "Yêu cầu đã dừng. Vui lòng thử lại.", 409)
+        raise
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 FREE = dict(
     chat_day=20,
     chat_period=200,
@@ -165,7 +224,7 @@ async def reserve(db, user_id, kind, request_key, amount, secondary=0):
         day=datetime.now(VN).strftime("%Y-%m-%d"),
         amount=amount,
         secondary=secondary,
-        expires_at=now_ms() + 120000,
+        expires_at=now_ms() + LEASE_MS,
     )
     db.add(usage)
     await db.flush()
@@ -176,7 +235,11 @@ async def finish(factory, usage_id, *, success, amount=None, secondary=None, pro
     async with factory() as db:
         row = await db.get(Usage, usage_id, with_for_update=True)
         if not row or row.status != "reserved":
+            if success:
+                fail("REQUEST_EXPIRED", "Yêu cầu đã dừng. Vui lòng thử lại.", 409)
             return
+        if success and row.expires_at <= now_ms():
+            fail("REQUEST_EXPIRED", "Yêu cầu đã hết hạn. Vui lòng thử lại.", 409)
         row.status = "committed" if success else "released"
         if amount is not None:
             row.amount = amount

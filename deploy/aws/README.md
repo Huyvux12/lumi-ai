@@ -10,7 +10,7 @@ secrets belong in GitHub.
 
 `stack.yaml` creates an ECS Fargate cluster/service, two ECR repositories, CloudWatch
 logs, an HTTPS ALB, encrypted EFS audio storage, and scoped execution/task/deploy
-roles. It starts at **zero tasks**, so the stack can be created before images exist.
+roles. Initialize the external release-state parameters first. It starts at **zero tasks**, so the stack can be created before images exist.
 The first successful workflow runs migrations and sets the service to one task.
 The `bootstrap` image references in the base definition are intentionally unused
 until GitHub replaces them with actual image digests.
@@ -69,11 +69,16 @@ SMTP port or payment prefix. Do not invent provider credentials to make startup 
 ## Bootstrap
 
 Copy `parameters.example.json` outside the repository and replace every placeholder
-with your existing resource identifiers. The parameter file contains ARNs/IDs only,
+with your existing resource identifiers. The parameter file contains ARNs, IDs, and the two SSM parameter names only,
 never database passwords or provider keys. Use an authenticated infrastructure
-administrator session with IAM/CloudFormation provisioning permissions:
+administrator session with IAM/CloudFormation provisioning permissions and access to the two non-secret SSM release parameters:
 
 ```bash
+# Creates /lumi/lumi-dev/task-definition and /lumi/lumi-dev/desired-count.
+# For an existing stack, adopts its active service before the template update.
+# Existing parameters are never overwritten.
+AWS_DEFAULT_REGION=<aws-region> python scripts/init_release_state.py --stack-name lumi-dev
+
 aws cloudformation deploy \
   --region <aws-region> \
   --stack-name lumi-dev \
@@ -85,6 +90,12 @@ aws cloudformation describe-stacks \
   --region <aws-region> --stack-name lumi-dev \
   --query 'Stacks[0].Outputs' --output table
 ```
+
+Set `DesiredCountParameter` to `/lumi/<stack-name>/desired-count` and
+`TaskDefinitionParameter` to `/lumi/<stack-name>/task-definition` in your parameter
+file. These are **SSM names**, not resolved values. The infrastructure administrator
+needs `ssm:GetParameters` when creating/updating the stack. Keep these parameters
+outside the stack: deleting or updating infrastructure must not reset release state.
 
 Stack creation incurs AWS charges even while the service has zero tasks (ALB,
 storage and logging). The infrastructure administrator may also need permission
@@ -135,14 +146,23 @@ used by the AWS workflow.
   ECR tags. Runtime images use digests. Repositories and EFS are retained on stack
   deletion; maintain a deliberate image retention policy that preserves rollback
   releases and manage retained resources explicitly. EFS backups are enabled.
-- CloudFormation owns the canonical task configuration; Actions owns active image
-  revisions/count. **Review stack updates carefully**: an infrastructure update can
-  reset the service to the base definition/zero tasks. Run the deployment workflow
-  after such updates before restoring traffic. It is intentionally not granted
-  permission to mutate IAM or CloudFormation infrastructure.
+  Canonical task revisions are retained so adopted service references remain valid;
+  prune old task definitions only after checking service and release-state references.
+- CloudFormation owns the canonical task configuration. After verifying a release,
+  Actions publishes the complete task revision and count 1 to the two non-secret
+  SSM parameters. Stack updates resolve those values and preserve the last verified
+  service; bootstrap is used only while count is 0. New canonical configuration
+  takes effect in the next Actions release, after migration and health checks.
+  Serialize infrastructure updates with deployments. Actions can write only these
+  two release parameters and cannot mutate IAM or CloudFormation infrastructure.
+  Before upgrading an existing stack to this template, run `init_release_state.py`
+  to adopt its service, then supply the two new parameter names during the update.
 - For manual rollback, an operator selects a previously successful service task
   definition in ECS and updates this service with desired count 1, then verifies
-  health and schema compatibility. Do not roll back to the `bootstrap` definition.
+  health and schema compatibility. Once verified, publish that revision to
+  `/lumi/<stack-name>/task-definition` and `1` to `/lumi/<stack-name>/desired-count`
+  using `aws ssm put-parameter --type String --overwrite`, so later stack updates
+  preserve the rollback. Do not roll back to the `bootstrap` definition.
   For secret rotation, restart using a known successful image revision; ECS resolves
   the current secret again. No secrets are printed in workflow output.
 - Inspect the ECS migration/service tasks and the `LogGroupName` output when a run
@@ -169,6 +189,7 @@ The container check builds both actual Dockerfiles and smoke tests the startup,
 frontend assets and API rewrite with the same shared network layout as ECS. It uses
 only a disposable SQLite database and runs without AWS credentials.
 
-References: [GitHub OIDC with AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws),
+References: [CloudFormation SSM parameter types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cloudformation-supplied-parameter-types.html),
+[GitHub OIDC with AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws),
 [ECS EFS volumes](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/efs-volumes.html),
 [Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output).

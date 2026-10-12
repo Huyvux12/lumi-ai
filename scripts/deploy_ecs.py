@@ -115,8 +115,22 @@ def check_service(response, expected_arn):
         )
 
 
+def validate_release_parameters(stack, stack_name):
+    parameters = {p["ParameterKey"]: p["ParameterValue"] for p in stack.get("Parameters", [])}
+    expected = {
+        "DesiredCountParameter": f"/lumi/{stack_name}/desired-count",
+        "TaskDefinitionParameter": f"/lumi/{stack_name}/task-definition",
+    }
+    if any(parameters.get(key) != value for key, value in expected.items()):
+        raise ValueError("Initialize and configure the stack's two /lumi/<stack-name>/ release-state parameters before deploying")
+
+
 def main():
     cluster, service_name = os.environ["ECS_CLUSTER"], os.environ["ECS_SERVICE"]
+    stack_name = os.environ["AWS_STACK_NAME"]
+    validate_release_parameters(
+        aws("cloudformation", "describe-stacks", "--stack-name", stack_name)["Stacks"][0], stack_name
+    )
     base = aws(
         "ecs",
         "describe-task-definition",
@@ -217,6 +231,13 @@ def main():
             ),
             service_arn,
         )
+        # Publish only after the exact revision passes verification. These
+        # non-secret parameters live outside CloudFormation's resource ownership.
+        prefix = f"/lumi/{stack_name}"
+        aws("ssm", "put-parameter", "--name", prefix + "/task-definition",
+            "--type", "String", "--value", service_arn, "--overwrite")
+        aws("ssm", "put-parameter", "--name", prefix + "/desired-count",
+            "--type", "String", "--value", "1", "--overwrite")
         print("Deployment succeeded.")
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:

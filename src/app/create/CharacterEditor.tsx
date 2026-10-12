@@ -35,6 +35,7 @@ import { readJSON, removeKey, writeJSON } from "@/lib/store";
 import {
   LIMITS,
   getUserChar,
+  fetchCharacter,
   useUserChars,
   useCharactersReady,
   markNew,
@@ -42,6 +43,7 @@ import {
   randomSeed,
   saveUserChar,
   uploadCharacterAvatar,
+  discardCharacterAvatar,
   type UserCharacter,
 } from "@/lib/userCharacters";
 
@@ -171,6 +173,15 @@ export function CharacterEditor({ editId }: { editId?: string }) {
   const charsReady = useCharactersReady();
   const user = useUser();
   const router = useRouter();
+  const [lookup, setLookup] = useState<{ id: string; owner: string; character?: UserCharacter; error?: string } | null>(null);
+  useEffect(() => {
+    if (!editId || !user) return;
+    let live = true;
+    fetchCharacter(editId)
+      .then((character) => { if (live) setLookup({ id: editId, owner: user.id, character }); })
+      .catch((error) => { if (live) setLookup({ id: editId, owner: user.id, error: error.message }); });
+    return () => { live = false; };
+  }, [editId, user]);
 
   useEffect(() => {
     if (hydrated && !user) {
@@ -192,14 +203,16 @@ export function CharacterEditor({ editId }: { editId?: string }) {
   }
 
   if (!user.can_use_features) return <PlanGate user={user} />;
-  const existing = editId ? getUserChar(editId) : undefined;
+  const resolved = lookup?.id === editId && lookup?.owner === user.id;
+  const existing = editId ? (resolved ? lookup.character : getUserChar(editId)) : undefined;
+  if (editId && !existing && !resolved) return <p className="p-10 text-center">Đang tải nhân vật…</p>;
   if (editId && (!existing || existing.owner !== user.id)) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-20 text-center">
         <Mascot mood="sad" className="size-40" />
         <h1 className="text-xl font-bold">Không tìm thấy nhân vật để sửa</h1>
         <p className="text-sm text-fg-2">
-          Nhân vật này không tồn tại hoặc không thuộc về bạn.
+          {resolved && lookup.error ? lookup.error : "Nhân vật này không tồn tại hoặc không thuộc về bạn."}
         </p>
         <Link
           href="/create"
@@ -274,6 +287,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
     setUploading(true);
     try {
       const avatar = await uploadCharacterAvatar(file);
+      if (draft.avatar_id !== avatar.avatar_id) discardCharacterAvatar(draft.avatar_id);
       setDraft((current) => ({ ...current, ...avatar }));
     } catch (error) {
       setImageError(
@@ -336,7 +350,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
     setSaving(true);
     setSaveError("");
     try {
-      saved = await saveUserChar({ ...c, visibility, voice_id: voiceId });
+      saved = await saveUserChar({ ...c, visibility, voice_id: voiceId }, !!existing);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Không thể lưu.");
       return;
@@ -379,6 +393,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
           <button
             type="button"
             onClick={() => {
+              discardCharacterAvatar(draft.avatar_id);
               setDraft(blank());
               setErrors({});
               go(0);
@@ -562,13 +577,14 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                           <button
                             type="button"
                             disabled={uploading || saving}
-                            onClick={() =>
+                            onClick={() => {
+                              discardCharacterAvatar(draft.avatar_id);
                               setDraft((current) => ({
                                 ...current,
                                 avatar_id: null,
                                 image: undefined,
-                              }))
-                            }
+                              }));
+                            }}
                             className="w-fit text-sm text-accent"
                           >
                             Dùng chân dung tạo tự động

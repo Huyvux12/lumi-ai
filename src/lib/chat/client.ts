@@ -22,6 +22,7 @@ export type ChatMessage = {
   segments?: Segment[];
   status?: string;
   created_at?: number;
+  reply_to?: string | null;
 };
 export type Conversation = {
   id: string;

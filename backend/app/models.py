@@ -1,6 +1,7 @@
 import time
 import uuid
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
+import json
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -56,6 +57,8 @@ class Character(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     data: Mapped[dict] = mapped_column(JSON)
+    search_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    tags_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     visibility: Mapped[str] = mapped_column(String(16), default="private")
     status: Mapped[str] = mapped_column(String(16), default="approved")
     voice_id: Mapped[str] = mapped_column(String(40), default="kore-warm")
@@ -136,6 +139,7 @@ class Order(Base):
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
     expires_at: Mapped[int] = mapped_column(BigInteger)
     paid_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reconciled_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
 
 
 class PaymentEvent(Base):
@@ -250,3 +254,12 @@ Index(
     sqlite_where=Prompt.published.is_(True),
 )
 Index("ix_usage_account_kind_day", Usage.user_id, Usage.kind, Usage.day)
+
+
+@event.listens_for(Character, "before_insert")
+@event.listens_for(Character, "before_update")
+def update_character_search(mapper, connection, character):
+    from .search import character_search
+
+    character.search_text = character_search(character.data)
+    character.tags_text = json.dumps(character.data.get("tags", []))

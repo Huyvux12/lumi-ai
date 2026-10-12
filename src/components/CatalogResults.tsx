@@ -3,6 +3,7 @@ import { useUserChars } from "@/lib/userCharacters";
 import { CharacterCard } from "./CharacterCard";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useUser } from "@/lib/auth";
 import type { Scene } from "@/lib/data";
 import { SceneCarousel } from "./SceneCarousel";
 export function CatalogResults({
@@ -14,21 +15,37 @@ export function CatalogResults({
   tag?: string;
   ids?: string[];
 }) {
-  const catalog = useUserChars();
-  const normalize = (s: string) =>
-    s
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d")
-      .toLowerCase();
-  const list = catalog.filter(
-    (c) =>
-      (!ids || ids.includes(c.id)) &&
-      (!tag || c.tags.includes(tag)) &&
-      normalize(c.name + " " + c.description + " " + c.tagline).includes(
-        normalize(q),
-      ),
-  );
+  const user = useUser();
+  const query = new URLSearchParams({ q, tag, limit: "40" });
+  ids?.forEach((id) => query.append("ids", id));
+  return <Results key={`${user?.id ?? "guest"}:${query}`} query={query.toString()} />;
+}
+function Results({ query }: { query: string }) {
+  const [list, setList] = useState<import("@/lib/data").Character[]>([]);
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    api<import("@/lib/data").Character[]>(`/characters?${query}`, { signal: controller.signal })
+      .then((rows) => { setList(rows); setMore(rows.length === 40); setOffset(rows.length); })
+      .catch((error) => { if (!controller.signal.aborted) setError(error.message); })
+      .finally(() => { if (!controller.signal.aborted) setBusy(false); });
+    return () => controller.abort();
+  }, [query]);
+  async function loadMore() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const rows = await api<import("@/lib/data").Character[]>(`/characters?${query}&offset=${offset}`);
+      setList((old) => Array.from(new Map([...old, ...rows].map((c) => [c.id, c])).values()));
+      setOffset(offset + rows.length);
+      setMore(rows.length === 40);
+    } catch (error) { setError(error instanceof Error ? error.message : "Không thể tải nhân vật."); }
+    finally { setBusy(false); }
+  }
   return (
     <>
       <p className="text-sm text-fg-2">{list.length} nhân vật</p>
@@ -39,6 +56,9 @@ export function CatalogResults({
           </li>
         ))}
       </ul>
+      {error && <p role="alert" className="text-danger">{error}</p>}
+      {busy && <p>Đang tải nhân vật…</p>}
+      {more && <button disabled={busy} onClick={() => void loadMore()} className="text-accent">Tải thêm nhân vật</button>}
     </>
   );
 }

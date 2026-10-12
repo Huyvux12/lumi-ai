@@ -8,6 +8,9 @@ deploy
 qa
 image
 reference
+test-results
+playwright-report
+tests
 .claude
 **/__pycache__
 **/.venv

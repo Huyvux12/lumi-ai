@@ -7,11 +7,12 @@ from .catalog_api import accessible_character, message_view, own_conversation
 from .models import Message, Prompt, Scene, Usage, now_ms
 from .prompts import assistant_model_content
 from .providers import generate_reply
-from .quotas import entitlement, finish, reserve
+from .quotas import entitlement, finish, reserve, usage_lease
 from .schemas import TurnInput
 from .security import db_session, fail, require_feature_user, require_user
 
 router = APIRouter()
+CHAT_HEARTBEAT_SECONDS = 15
 
 
 def event(name, data):
@@ -47,6 +48,8 @@ async def turn(
             fail("KEY_CONFLICT", "Mã yêu cầu đã được dùng cho hội thoại khác.", 409)
         if previous.status == "complete":
             return StreamingResponse(replay(previous), media_type="text/event-stream")
+        if previous.status in {"failed", "interrupted"}:
+            fail("REQUEST_FAILED", "Phản hồi đã dừng. Hãy thử lại với mã yêu cầu mới.", 409)
         fail("REQUEST_ACTIVE", "Yêu cầu đã được nhận. Hãy tải lại hội thoại.", 409)
     plan, _, _ = await entitlement(db, user.id)
     if len(body.text) > plan.quota["input_chars"]:
@@ -108,14 +111,28 @@ async def turn(
 
     async def stream():
         success, meta = False, {}
-        yield event("turn.started", {"id": answer.id, "user_message": message_view(user_message)})
         task = asyncio.current_task()
         request.app.state.chat_tasks[answer.id] = task
+        generation = None
         try:
-            segments, meta = await generate_reply(
-                request.app.state.http, settings, prompt, character, scene, history, plan.quota
-            )
+            yield event("turn.started", {"id": answer.id, "user_message": message_view(user_message)})
+
+            async def generate():
+                async with usage_lease(factory, usage.id):
+                    return await generate_reply(
+                        request.app.state.http, settings, prompt, character, scene, history, plan.quota
+                    )
+
+            generation = asyncio.create_task(generate())
+            while not generation.done():
+                done, _ = await asyncio.wait({generation}, timeout=CHAT_HEARTBEAT_SECONDS)
+                if not done:
+                    yield ": keepalive\n\n"
+            segments, meta = generation.result()
             async with factory() as update:
+                reservation = await update.get(Usage, usage.id, with_for_update=True)
+                if not reservation or reservation.status != "reserved" or reservation.expires_at <= now_ms():
+                    fail("REQUEST_EXPIRED", "Yêu cầu đã dừng. Vui lòng thử lại.", 409)
                 current = await update.get(Message, answer.id, with_for_update=True)
                 if not current or current.status != "generating":
                     return
@@ -124,10 +141,10 @@ async def turn(
                     f"*{s['text']}*" if s["type"] == "narration" else s["text"] for s in segments
                 )
                 current.status = "complete"
+                reservation.status, reservation.provider_usage = "committed", meta
                 await update.commit()
                 public = message_view(current)
             success = True
-            await finish(factory, usage.id, success=True, provider_usage=meta)
             for segment in public["segments"]:
                 yield event("segment.completed", {"id": answer.id, "segment": segment})
             yield event("turn.completed", {"message": public, "mode": "demo" if meta.get("demo") else "live"})
@@ -139,14 +156,19 @@ async def turn(
             )
         finally:
             request.app.state.chat_tasks.pop(answer.id, None)
+            if generation:
+                generation.cancel()
 
             async def cleanup():
+                if generation:
+                    await asyncio.gather(generation, return_exceptions=True)
                 async with factory() as update:
                     current = await update.get(Message, answer.id)
                     if current and current.status == "generating":
                         current.status = "failed"
                         await update.commit()
-                await finish(factory, usage.id, success=success, provider_usage=meta)
+                if not success:
+                    await finish(factory, usage.id, success=False, provider_usage=meta)
 
             await asyncio.shield(cleanup())
 
@@ -200,15 +222,16 @@ async def preview(
     prompt = (await db.execute(select(Prompt).where(Prompt.published.is_(True)))).scalar_one()
     await db.commit()
     try:
-        segments, metadata = await generate_reply(
-            request.app.state.http,
-            request.app.state.settings,
-            prompt,
-            SimpleNamespace(data=body.character.model_dump()),
-            None,
-            [{"role": "user", "content": body.text}],
-            plan.quota,
-        )
+        async with usage_lease(request.app.state.db, usage.id):
+            segments, metadata = await generate_reply(
+                request.app.state.http,
+                request.app.state.settings,
+                prompt,
+                SimpleNamespace(data=body.character.model_dump()),
+                None,
+                [{"role": "user", "content": body.text}],
+                plan.quota,
+            )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=metadata)
         return {
             "content": "\n\n".join(s["text"] for s in segments),
