@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from .models import Character, Conversation, Message, Report, Scene, Voice, now_ms, uid
 from .quotas import entitlement
 from .schemas import CharacterInput, ConversationInput, Input
-from .security import db_session, fail, lock_user, optional_user, require_user
+from .security import db_session, fail, lock_user, optional_user, require_feature_user, require_user
 from pydantic import Field
 
 router = APIRouter()
@@ -95,7 +95,7 @@ async def character(ident: str, user=Depends(optional_user), db=Depends(db_sessi
 
 
 @router.post("/characters")
-async def create_character(body: CharacterInput, user=Depends(require_user), db=Depends(db_session)):
+async def create_character(body: CharacterInput, user=Depends(require_feature_user), db=Depends(db_session)):
     await lock_user(db, user.id)
     plan, _, _ = await entitlement(db, user.id)
     count = await db.scalar(select(func.count()).select_from(Character).where(Character.owner_id == user.id))
@@ -121,7 +121,7 @@ async def create_character(body: CharacterInput, user=Depends(require_user), db=
 
 @router.patch("/characters/{ident}")
 async def edit_character(
-    ident: str, body: CharacterInput, user=Depends(require_user), db=Depends(db_session)
+    ident: str, body: CharacterInput, user=Depends(require_feature_user), db=Depends(db_session)
 ):
     c = await accessible_character(db, ident, user)
     if c.owner_id != user.id:
@@ -161,7 +161,7 @@ async def voices(db=Depends(db_session)):
 
 
 @router.post("/conversations")
-async def create_conversation(body: ConversationInput, user=Depends(require_user), db=Depends(db_session)):
+async def create_conversation(body: ConversationInput, user=Depends(require_feature_user), db=Depends(db_session)):
     await accessible_character(db, body.character_id, user)
     if body.scene_id and not await db.get(Scene, body.scene_id):
         fail("NOT_FOUND", "Không tìm thấy bối cảnh.", 404)

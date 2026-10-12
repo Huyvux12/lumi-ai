@@ -33,6 +33,7 @@ import {
 import { Mascot } from "./Mascot";
 import { Portrait } from "./Portrait";
 import { RichText } from "./RichText";
+import { PlanGate } from "./PlanGate";
 
 const SPRING = {
   type: "spring",
@@ -41,15 +42,23 @@ const SPRING = {
   mass: 0.8,
 } as const;
 
-export function ChatView({
-  character: c,
-  scene,
-  initialConversationId,
-}: {
+type ChatViewProps = {
   character: Character;
   scene?: Scene;
   initialConversationId?: string;
-}) {
+};
+
+export function ChatView(props: ChatViewProps) {
+  const user = useUser();
+  if (user && !user.can_use_features) return <PlanGate user={user} />;
+  return <ChatSession {...props} />;
+}
+
+function ChatSession({
+  character: c,
+  scene,
+  initialConversationId,
+}: ChatViewProps) {
   const user = useUser();
   const authReady = useAuthReady();
   const greeting: ChatMessage = { role: "assistant", content: c.greeting };
@@ -642,7 +651,11 @@ export function ChatView({
         <motion.button
           type="button"
           onClick={beginCall}
-          disabled={!user || loading || (callMode === "off" && (streaming || recording || transcribing))}
+          disabled={
+            !user ||
+            loading ||
+            (callMode === "off" && (streaming || recording || transcribing))
+          }
           whileTap={{ scale: 0.94 }}
           aria-pressed={callMode !== "off"}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${callMode === "off" ? "bg-white/[0.06] text-fg-2 hover:bg-white/10 hover:text-fg" : "bg-emerald-400/20 text-emerald-200"}`}
@@ -863,7 +876,9 @@ export function ChatView({
             />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{c.name}</p>
-              <p className="text-sm text-fg-2">{callLabel}. Nói xong thì ngừng một nhịp.</p>
+              <p className="text-sm text-fg-2">
+                {callLabel}. Nói xong thì ngừng một nhịp.
+              </p>
             </div>
             {callMode === "speaking" && (
               <button

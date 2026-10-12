@@ -9,6 +9,7 @@ from .models import (
     Order,
     PaymentEvent,
     Plan,
+    PlanSettings,
     Prompt,
     Report,
     Session,
@@ -20,7 +21,7 @@ from .models import (
 )
 from .prompts import ALL_TAGS
 from .quotas import admin_usage
-from .schemas import Input, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
+from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
 from .security import db_session, fail, require_admin, require_owner, require_staff
 from pydantic import Field
 
@@ -206,6 +207,7 @@ async def reconcile(
 
 @router.get("/plans")
 async def plans(user=Depends(require_admin), db=Depends(db_session)):
+    settings = {row.code: row for row in (await db.execute(select(PlanSettings))).scalars()}
     rows = (await db.execute(select(Plan).order_by(Plan.created_at.desc()))).scalars()
     return [
         {
@@ -214,10 +216,29 @@ async def plans(user=Depends(require_admin), db=Depends(db_session)):
             "price_vnd": p.price_vnd,
             "quota": p.quota,
             "active": p.active,
+            "enabled": settings[p.code].enabled,
+            "discount_percent": settings[p.code].discount_percent,
+            "promo_codes": settings[p.code].promo_codes,
             "created_at": p.created_at,
         }
         for p in rows
     ]
+
+
+@router.put("/plans/{code}/availability")
+async def update_availability(
+    code: str, body: PlanAvailabilityPatch, user=Depends(require_admin), db=Depends(db_session)
+):
+    settings = await db.get(PlanSettings, code, with_for_update=True)
+    if not settings or (code == "free" and (body.discount_percent or body.promo_codes)):
+        fail("INVALID_PLAN", "Chỉ áp dụng mã giảm giá cho Premium.", 422)
+    before = {key: getattr(settings, key) for key in ("enabled", "discount_percent", "promo_codes")}
+    changes = body.model_dump(exclude={"reason"})
+    for key, value in changes.items():
+        setattr(settings, key, value)
+    audit(db, user, "plan.availability", code, {"before": before, "after": changes, "reason": body.reason})
+    await db.commit()
+    return {"code": code, **changes}
 
 
 @router.post("/plans/{code}")

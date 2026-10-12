@@ -9,7 +9,7 @@ from .prompts import assistant_model_content
 from .providers import generate_reply
 from .quotas import entitlement, finish, reserve
 from .schemas import TurnInput
-from .security import db_session, fail, require_user
+from .security import db_session, fail, require_feature_user, require_user
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ async def turn(
     body: TurnInput,
     request: Request,
     idempotency_key: str = Header(min_length=8, max_length=80),
-    user=Depends(require_user),
+    user=Depends(require_feature_user),
     db=Depends(db_session),
 ):
     settings = request.app.state.settings
@@ -187,7 +187,7 @@ async def preview(
     body: PreviewInput,
     request: Request,
     idempotency_key: str = Header(min_length=8, max_length=80),
-    user=Depends(require_user),
+    user=Depends(require_feature_user),
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"preview:{user.id}", 10)

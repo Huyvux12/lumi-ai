@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from .models import AuthToken, Session, User, now_ms
 from .quotas import entitlement
+from .plan_access import access_view, require_plan_open
 from .schemas import Input, Login, ProfilePatch, Register
 from .security import (
     COOKIE,
@@ -39,7 +40,8 @@ async def public_user(db, user):
         "role": user.role,
         "email_verified": user.email_verified,
         "mfa_enabled": user.mfa_enabled,
-        "plan": plan.code,
+        "plan": plan.code if plan else None,
+        **await access_view(db, user, plan),
         "subscription_ends_at": sub.ends_at if sub else None,
     }
 
@@ -47,6 +49,7 @@ async def public_user(db, user):
 @router.post("/auth/register")
 async def register(body: Register, request: Request, response: Response, db=Depends(db_session)):
     await request.app.state.limiter.check(f"signup:{request.client.host}", 5, 3600)
+    await require_plan_open(db, body.plan)
     user = User(
         email=str(body.email).lower(),
         username=body.username,
@@ -54,6 +57,7 @@ async def register(body: Register, request: Request, response: Response, db=Depe
         password_hash=passwords.hash(body.password),
         hue=body.hue,
         interests=body.interests,
+        signup_plan=body.plan,
     )
     db.add(user)
     try:

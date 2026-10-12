@@ -21,6 +21,9 @@ type Plan = {
   price_vnd: number;
   active: boolean;
   quota: Record<string, number>;
+  enabled: boolean;
+  discount_percent: number;
+  promo_codes: string[];
 };
 type Prompt = {
   id: string;
@@ -93,6 +96,105 @@ const allTabs = [
 ] as const;
 type Tab = (typeof allTabs)[number][0];
 const field = "field w-full";
+function PlanAvailabilityForm({
+  plan,
+  busy,
+  save,
+}: {
+  plan: Plan;
+  busy: boolean;
+  save: (body: Record<string, unknown>) => Promise<void>;
+}) {
+  const [enabled, setEnabled] = useState(plan.enabled);
+  const [discount, setDiscount] = useState(String(plan.discount_percent));
+  const [codes, setCodes] = useState(plan.promo_codes.join(", "));
+  const [reason, setReason] = useState("");
+  return (
+    <form
+      className="mt-4 space-y-3 border-b border-white/10 pb-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save({
+          enabled,
+          discount_percent: plan.code === "premium" ? Number(discount) : 0,
+          promo_codes:
+            plan.code === "premium"
+              ? codes
+                  .split(/[,\n]+/)
+                  .map((code) => code.trim())
+                  .filter(Boolean)
+              : [],
+          reason,
+        });
+      }}
+    >
+      <label className="flex items-center gap-3 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => setEnabled(event.target.checked)}
+          disabled={busy}
+        />
+        Mở đăng ký và sử dụng {plan.code === "free" ? "Free" : "Premium"}
+      </label>
+      <p className="text-xs text-fg-3">
+        Đóng gói sẽ chặn tính năng của cả tài khoản đang dùng gói này.
+      </p>
+      {plan.code === "free" ? (
+        <p className="text-sm text-amber-200">
+          Khi đóng Free: hiện sever quá tải vui lòng đăng kí gói cao cấp hơn
+        </p>
+      ) : (
+        <>
+          <label className="block text-sm">
+            Giảm giá Premium (%)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              required
+              className={`${field} mt-2`}
+              value={discount}
+              onChange={(event) => setDiscount(event.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            Mã giảm giá đang áp dụng
+            <textarea
+              className={`${field} mt-2`}
+              value={codes}
+              onChange={(event) => setCodes(event.target.value)}
+              placeholder="Mỗi mã một dòng hoặc ngăn cách bằng dấu phẩy"
+            />
+          </label>
+          <p className="text-xs text-fg-3">
+            Mã có 3–32 chữ, số, dấu _ hoặc -. Phần trăm hiện tại chỉ áp dụng cho
+            đơn mới có mã hợp lệ.
+          </p>
+        </>
+      )}
+      <label className="block text-sm">
+        Lý do thay đổi
+        <input
+          className={`${field} mt-2`}
+          required
+          minLength={3}
+          maxLength={500}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={busy}
+        className="btn-glow rounded-full px-5 py-2 text-sm font-semibold disabled:opacity-50"
+      >
+        Lưu trạng thái gói
+      </button>
+    </form>
+  );
+}
 const button =
   "rounded-xl border border-white/15 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-40";
 const quotaLabels: Record<string, string> = {
@@ -460,6 +562,14 @@ function AdminAccount() {
                 <h2 className="text-xl font-semibold">
                   {p.code} · {p.price_vnd.toLocaleString("vi-VN")} ₫
                 </h2>
+                <PlanAvailabilityForm
+                  key={`${p.code}:${p.enabled}:${p.discount_percent}:${p.promo_codes.join(",")}`}
+                  plan={p}
+                  busy={busy}
+                  save={(body) =>
+                    act(`/admin/plans/${p.code}/availability`, body, "PUT")
+                  }
+                />
                 <dl className="my-4 grid grid-cols-2 gap-2 text-sm">
                   {Object.entries(p.quota).map(([key, value]) => (
                     <div key={key}>

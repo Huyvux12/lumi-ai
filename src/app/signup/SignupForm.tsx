@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -21,6 +21,8 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { isEmail, isUsername, signUp } from "@/lib/auth";
 import { fireworks } from "@/lib/confetti";
 import { categories } from "@/lib/data";
+import { api, ApiError } from "@/lib/api";
+import type { PublicPlan } from "@/lib/plans";
 
 const HUES = [220, 265, 300, 340, 20, 160];
 const STEPS = ["Tài khoản", "Hồ sơ", "Sở thích"] as const;
@@ -50,7 +52,13 @@ const toUsername = (name: string) =>
     .replace(/^_|_$/g, "")
     .slice(0, 20);
 
-export function SignupForm({ next }: { next: string }) {
+export function SignupForm({
+  next,
+  preferredPlan,
+}: {
+  next: string;
+  preferredPlan: "free" | "premium";
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
@@ -68,6 +76,22 @@ export function SignupForm({ next }: { next: string }) {
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [plan, setPlan] = useState<"free" | "premium">(preferredPlan);
+  const [promoCode, setPromoCode] = useState("");
+  useEffect(() => {
+    api<PublicPlan[]>("/plans")
+      .then((list) => {
+        setPlans(list);
+        const selected =
+          list.find((item) => item.code === preferredPlan && item.enabled) ??
+          list.find((item) => item.enabled);
+        if (selected) setPlan(selected.code);
+      })
+      .catch((error) => setErrors({ submit: error.message }));
+  }, [preferredPlan]);
+  const selectedPlan = plans.find((item) => item.code === plan);
+  const billingDestination = `/billing${promoCode.trim() ? `?promo=${encodeURIComponent(promoCode.trim())}` : ""}`;
 
   const pwScore = strength(password);
   const hasError = Object.values(errors).some(Boolean);
@@ -155,14 +179,31 @@ export function SignupForm({ next }: { next: string }) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy || done) return;
+    if (!selectedPlan?.enabled)
+      return fail({
+        submit:
+          selectedPlan?.closed_message ??
+          "Chưa thể đăng ký gói. Vui lòng thử lại sau.",
+      });
     if (!validate(step)) return;
     if (step < 2) return go(step + 1);
     setBusy(true);
     try {
-      await signUp({ email, password, name, username, hue, interests });
+      await signUp({ email, password, name, username, hue, interests, plan });
       setDone(true);
       fireworks();
     } catch (err) {
+      if (err instanceof ApiError && err.code === "PLAN_CLOSED") {
+        const list = await api<PublicPlan[]>("/plans").catch(() => null);
+        if (list) {
+          setPlans(list);
+          const replacement =
+            list.find((item) => item.code === "premium" && item.enabled) ??
+            list.find((item) => item.enabled);
+          if (replacement) setPlan(replacement.code);
+          go(0);
+        }
+      }
       fail({ submit: err instanceof Error ? err.message : "Có lỗi xảy ra." });
     } finally {
       setBusy(false);
@@ -201,7 +242,9 @@ export function SignupForm({ next }: { next: string }) {
             Tài khoản đã <span className="text-gradient">ra đời</span>!
           </h1>
           <p className="mt-2 text-sm text-fg-2">
-            @{username} ơi, hàng chục nhân vật đang chờ bạn bắt chuyện.
+            {plan === "premium"
+              ? "Hoàn tất thanh toán Premium để mở trò chuyện và các tính năng."
+              : `@${username} ơi, hàng chục nhân vật đang chờ bạn bắt chuyện.`}
           </p>
           <div className="mt-7 flex w-full flex-col gap-3">
             <motion.button
@@ -209,19 +252,22 @@ export function SignupForm({ next }: { next: string }) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => {
-                router.push(next);
+                router.push(plan === "premium" ? billingDestination : next);
                 router.refresh();
               }}
               className="btn-glow flex items-center justify-center gap-2 rounded-2xl px-5 py-3 font-semibold"
             >
-              <Compass className="size-4" aria-hidden="true" /> Khám phá ngay
+              <Compass className="size-4" aria-hidden="true" />{" "}
+              {plan === "premium" ? "Thanh toán Premium" : "Khám phá ngay"}
             </motion.button>
             <Link
-              href="/create"
+              href={plan === "premium" ? billingDestination : "/create"}
               className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 font-medium transition-colors hover:bg-white/5"
             >
-              <Plus className="size-4" aria-hidden="true" /> Tạo nhân vật đầu
-              tiên
+              <Plus className="size-4" aria-hidden="true" />{" "}
+              {plan === "premium"
+                ? "Áp dụng mã giảm giá"
+                : "Tạo nhân vật đầu tiên"}
             </Link>
           </div>
         </motion.div>
@@ -273,6 +319,60 @@ export function SignupForm({ next }: { next: string }) {
                   <h1 className="text-2xl font-bold tracking-tight">
                     Bắt đầu <span className="text-gradient">hành trình</span>
                   </h1>
+                  <fieldset className="space-y-3">
+                    <legend className="mb-2 text-sm font-medium">
+                      Chọn gói cho tài khoản
+                    </legend>
+                    {plans.length === 0 && (
+                      <p className="text-sm text-fg-2">Đang tải gói đăng ký…</p>
+                    )}
+                    {plans.map((item) => (
+                      <label
+                        key={item.code}
+                        className={`block rounded-2xl border p-4 ${plan === item.code && item.enabled ? "border-accent bg-accent/10" : "border-white/10"}`}
+                      >
+                        <span className="flex items-center gap-3 font-semibold">
+                          <input
+                            type="radio"
+                            name="plan"
+                            value={item.code}
+                            checked={plan === item.code}
+                            disabled={!item.enabled}
+                            onChange={() => setPlan(item.code)}
+                          />
+                          {item.code === "free" ? "Free" : "Premium"}
+                          <span className="ml-auto text-sm">
+                            {item.price_vnd.toLocaleString("vi-VN")} ₫
+                            {item.code === "premium" && " / tháng"}
+                          </span>
+                        </span>
+                        {item.closed_message && (
+                          <p className="mt-2 text-sm text-amber-200">
+                            {item.closed_message}
+                          </p>
+                        )}
+                        {item.code === "premium" && item.enabled && (
+                          <p className="mt-2 text-sm text-fg-2">
+                            Mở tính năng sau khi thanh toán.{" "}
+                            {item.discount_percent > 0 &&
+                              `Mã hợp lệ được giảm ${item.discount_percent}%.`}
+                          </p>
+                        )}
+                      </label>
+                    ))}
+                    {plan === "premium" && (
+                      <label className="block text-sm">
+                        Mã giảm giá (nếu có)
+                        <input
+                          className="field mt-2"
+                          value={promoCode}
+                          maxLength={32}
+                          onChange={(event) => setPromoCode(event.target.value)}
+                          placeholder="Áp dụng khi thanh toán Premium"
+                        />
+                      </label>
+                    )}
+                  </fieldset>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-sm font-medium text-fg-2">Email</span>
                     <input
@@ -553,7 +653,7 @@ export function SignupForm({ next }: { next: string }) {
           )}
           <motion.button
             type="submit"
-            disabled={busy}
+            disabled={busy || !selectedPlan?.enabled}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             className="btn-glow flex flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-3 font-semibold"

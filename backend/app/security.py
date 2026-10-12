@@ -55,6 +55,13 @@ async def require_user(user=Depends(optional_user)):
     return user
 
 
+async def require_feature_user(user=Depends(require_user), db=Depends(db_session)):
+    from .quotas import feature_entitlement
+
+    await feature_entitlement(db, user.id)
+    return user
+
+
 async def require_staff(request: Request, user=Depends(require_user)):
     if user.role not in {"admin", "owner", "moderator"}:
         fail("FORBIDDEN", "Bạn không có quyền quản trị.", 403)

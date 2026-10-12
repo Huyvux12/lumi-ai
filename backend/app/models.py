@@ -23,6 +23,7 @@ class User(Base):
     bio: Mapped[str] = mapped_column(String(200), default="")
     hue: Mapped[int] = mapped_column(Integer, default=265)
     interests: Mapped[list] = mapped_column(JSON, default=list)
+    signup_plan: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
     role: Mapped[str] = mapped_column(String(16), default="user")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -103,6 +104,14 @@ class Plan(Base):
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
+class PlanSettings(Base):
+    __tablename__ = "plan_settings"
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0)
+    promo_codes: Mapped[list] = mapped_column(JSON, default=list)
+
+
 class Order(Base):
     __tablename__ = "orders"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -111,6 +120,9 @@ class Order(Base):
     request_key: Mapped[str] = mapped_column(String(160), unique=True)
     plan_id: Mapped[str] = mapped_column(ForeignKey("plan_versions.id"))
     amount_vnd: Mapped[int] = mapped_column(Integer)
+    list_price_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    promo_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     environment: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)

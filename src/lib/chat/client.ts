@@ -1,5 +1,11 @@
 import type { Character } from "@/lib/data";
-import { api, ApiError, mutation, requestId } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  mutation,
+  notifyPlanChange,
+  requestId,
+} from "@/lib/api";
 import { currentUser } from "@/lib/auth";
 export type Segment = {
   id: string;
@@ -56,6 +62,7 @@ export async function streamTurn(
   });
   if (!response.ok || !response.body) {
     const body = await response.json().catch(() => ({}));
+    notifyPlanChange(body.code);
     throw new ApiError(
       body.message || "Không thể nhận phản hồi.",
       body.code || "REQUEST_FAILED",

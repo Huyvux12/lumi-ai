@@ -13,6 +13,7 @@ class Register(Input):
     username: str = Field(pattern=r"^[a-z0-9_.]{3,20}$")
     hue: int = Field(default=265, ge=0, le=360)
     interests: list[str] = Field(default_factory=list, max_length=10)
+    plan: Literal["free", "premium"] = "free"
 
     @field_validator("password")
     @classmethod
@@ -111,6 +112,33 @@ class Quota(Input):
 class PlanPatch(Reason):
     price_vnd: int = Field(ge=0, le=10000000)
     quota: Quota
+
+
+class PlanAvailabilityPatch(Reason):
+    enabled: bool
+    discount_percent: int = Field(default=0, ge=0, le=100, strict=True)
+    promo_codes: list[str] = Field(default_factory=list, max_length=50)
+
+    @field_validator("promo_codes")
+    @classmethod
+    def codes_valid(cls, values):
+        import re
+
+        values = [value.strip().upper() for value in values]
+        if any(not re.fullmatch(r"[A-Z0-9_-]{3,32}", value) for value in values):
+            raise ValueError("Promo codes must contain 3–32 letters, digits, _ or -")
+        return list(dict.fromkeys(values))
+
+
+class OrderInput(Input):
+    promo_code: str | None = Field(default=None, max_length=32)
+
+    @field_validator("promo_code")
+    @classmethod
+    def normalize_code(cls, value):
+        if value is None:
+            return None
+        return value.strip().upper() or None
 
 
 class UserPatch(Reason):

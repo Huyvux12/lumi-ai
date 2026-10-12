@@ -14,7 +14,7 @@ from .prompts import speech_parts
 from .providers import normalize_audio, transcribe, tts_stream
 from .quotas import entitlement, finish, reserve
 from .schemas import TTSInput
-from .security import db_session, fail, require_user
+from .security import db_session, fail, require_feature_user, require_user
 
 router = APIRouter()
 MIMES = {
@@ -35,7 +35,7 @@ async def stt(
     request: Request,
     file: UploadFile,
     idempotency_key: str = Header(min_length=8, max_length=80),
-    user=Depends(require_user),
+    user=Depends(require_feature_user),
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"stt:{user.id}", 10)
@@ -79,7 +79,7 @@ async def create_tts(
     body: TTSInput,
     request: Request,
     idempotency_key: str = Header(min_length=8, max_length=80),
-    user=Depends(require_user),
+    user=Depends(require_feature_user),
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"tts:{user.id}", 15)
@@ -139,7 +139,7 @@ async def create_tts(
 
 
 @router.get("/speech/jobs/{ident}/stream")
-async def audio(ident: str, request: Request, user=Depends(require_user), db=Depends(db_session)):
+async def audio(ident: str, request: Request, user=Depends(require_feature_user), db=Depends(db_session)):
     row = await db.get(AudioJob, ident, with_for_update=True)
     if not row or row.user_id != user.id or row.expires_at <= now_ms():
         fail("NOT_FOUND", "Không tìm thấy bản đọc.", 404)

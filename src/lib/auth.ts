@@ -12,7 +12,12 @@ export type User = {
   role: "user" | "moderator" | "admin" | "owner";
   email_verified: boolean;
   mfa_enabled: boolean;
-  plan: "free" | "premium";
+  plan: "free" | "premium" | null;
+  signup_plan: "free" | "premium";
+  has_plan: boolean;
+  plan_enabled: boolean;
+  can_use_features: boolean;
+  plan_message: string | null;
   subscription_ends_at: number | null;
 };
 export const AUTH_EVENT = "lumi:auth";
@@ -63,9 +68,11 @@ function useSession() {
       if (e.key === "lumi:session-change") void refreshUser();
     };
     window.addEventListener("focus", focus);
+    window.addEventListener("lumi:plan-changed", focus);
     window.addEventListener("storage", changed);
     return () => {
       window.removeEventListener("focus", focus);
+      window.removeEventListener("lumi:plan-changed", focus);
       window.removeEventListener("storage", changed);
     };
   }, []);
@@ -104,6 +111,7 @@ export async function signUp(input: {
   username: string;
   hue: number;
   interests: string[];
+  plan: "free" | "premium";
 }) {
   const user = await api<User>(
     "/auth/register",

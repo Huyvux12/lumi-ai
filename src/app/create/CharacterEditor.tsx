@@ -1,5 +1,7 @@
 "use client";
 
+import { PlanGate } from "@/components/PlanGate";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -164,6 +166,7 @@ export function CharacterEditor({ editId }: { editId?: string }) {
     );
   }
 
+  if (!user.can_use_features) return <PlanGate user={user} />;
   const existing = editId ? getUserChar(editId) : undefined;
   if (editId && (!existing || existing.owner !== user.id)) {
     return (

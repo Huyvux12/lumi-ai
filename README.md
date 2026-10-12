@@ -108,6 +108,33 @@ Tokenizer Qwen được đóng gói từ [nguồn chính thức](https://hugging
 
 ## Database và triển khai
 
+Gói sử dụng thuộc tài khoản đã đăng ký. Free được cấp khi đăng ký Free; tài khoản
+đăng ký Premium chỉ mở chat/tạo nhân vật/preview/STT/TTS sau khi thanh toán được xác
+nhận (hoặc đổi mã giảm 100%). Gói Premium đã hết hạn của tài khoản đăng ký Premium
+không tự chuyển thành Free. Tài khoản Free nâng cấp Premium vẫn có thể trở lại Free
+khi kỳ Premium hết hạn, nếu Free đang mở.
+
+Trong **Quản trị → Gói & giới hạn**, admin/owner mở hoặc đóng Free/Premium, đặt phần
+trăm giảm Premium từ 0–100 và danh sách mã được áp dụng. Cấu hình được lưu ở server,
+ghi audit và không bị seed/reset khi khởi động. Đóng gói chặn cả đăng ký mới lẫn yêu
+cầu dùng tính năng mới của tài khoản đang dùng gói đó, kể cả retry/cached audio;
+không chặn đăng nhập, quản trị, quản lý tài khoản, lịch sử hay thanh toán nâng cấp.
+Free vẫn hiện trên signup khi đóng, bị vô hiệu hóa và hiển thị đúng:
+**hiện sever quá tải vui lòng đăng kí gói cao cấp hơn**. Premium còn mở được chọn để
+đăng ký; nếu cả hai đóng, phải chờ mở lại.
+
+Mã Premium không phân biệt hoa/thường, có 3–32 chữ/số/`_`/`-`, được nhập ở signup
+hoặc trang thanh toán. Chỉ mã trong danh sách hiện tại mới áp dụng phần trăm giảm;
+không có mã thì trả giá niêm yết. Server tính và lưu giá niêm yết, phần trăm, mã và
+số tiền chính xác vào đơn. Điều chỉnh mã/phần trăm không đổi giá đơn đã tạo; webhook
+phải khớp số tiền đã lưu. Mã có thể dùng lại cho đơn mới khi còn trong danh sách.
+Giảm 100% cấp một kỳ Premium qua đơn 0 ₫, không tạo giao dịch ngân hàng giả.
+
+Trước khi chạy bản này trên database hiện có, chạy
+`python -m alembic -c backend/alembic.ini upgrade head`. Migration giữ tài khoản cũ
+ở Free khi không có kỳ Premium còn hiệu lực, giữ kỳ Premium/giá đơn cũ và khởi tạo
+hai gói ở trạng thái mở. Workflow AWS đã chạy migration trước khi cập nhật service.
+
 Nhánh `dev` triển khai lên AWS ECS Fargate qua GitHub Actions, ECR và GitHub OIDC.
 Xem [hướng dẫn AWS](deploy/aws/README.md) để tạo CloudFormation stack, cấu hình
 Secrets Manager và ba biến GitHub cần thiết. Workflow chỉ triển khai sau khi checks

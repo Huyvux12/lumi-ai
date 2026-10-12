@@ -1,4 +1,4 @@
-import { api, ApiError, mutation, requestId } from "../api";
+import { api, ApiError, mutation, notifyPlanChange, requestId } from "../api";
 export type Voice = { id: string; name: string };
 export class DialoguePlayer {
   private context: AudioContext | null = null;
@@ -58,6 +58,7 @@ export class DialoguePlayer {
     });
     if (!res.ok || !res.body) {
       const error = await res.json().catch(() => ({}));
+      notifyPlanChange(error.code);
       throw new ApiError(
         error.message || "Không thể phát giọng đọc.",
         error.code || "AUDIO_FAILED",

@@ -2,8 +2,10 @@ import json
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from .billing import apply_payment, authenticate_webhook, create_order, order_view, payment_key
-from .models import Order, Plan, Subscription
+from .billing import apply_payment, authenticate_webhook, create_order, order_view, payment_key, premium_quote
+from .models import Order, Plan, PlanSettings, Subscription
+from .plan_access import access_view, closed_message
+from .schemas import OrderInput
 from .quotas import entitlement
 from .security import db_session, fail, require_user
 
@@ -12,6 +14,7 @@ router = APIRouter()
 
 @router.get("/plans")
 async def plans(db=Depends(db_session)):
+    settings = {row.code: row for row in (await db.execute(select(PlanSettings))).scalars()}
     rows = (await db.execute(select(Plan).where(Plan.active.is_(True)))).scalars()
     descriptions = {
         "free": "Khám phá nhân vật, trò chuyện và dùng thử giọng nói với giới hạn cơ bản.",
@@ -23,9 +26,18 @@ async def plans(db=Depends(db_session)):
             "price_vnd": p.price_vnd,
             "duration": "1 tháng" if p.code == "premium" else None,
             "description": descriptions[p.code],
+            "enabled": settings[p.code].enabled,
+            "discount_percent": settings[p.code].discount_percent,
+            "closed_message": closed_message(p.code) if not settings[p.code].enabled else None,
         }
         for p in rows
     ]
+
+
+@router.post("/billing/quote")
+async def quote(body: OrderInput, user=Depends(require_user), db=Depends(db_session)):
+    _, result = await premium_quote(db, body.promo_code)
+    return result
 
 
 @router.post("/billing/orders")
@@ -34,9 +46,12 @@ async def order(
     idempotency_key: str = Header(min_length=8, max_length=80),
     user=Depends(require_user),
     db=Depends(db_session),
+    body: OrderInput | None = None,
 ):
     await request.app.state.limiter.check(f"order:{user.id}", 10)
-    row = await create_order(db, request.app.state.settings, user, idempotency_key)
+    row = await create_order(
+        db, request.app.state.settings, user, idempotency_key, body.promo_code if body else None
+    )
     await db.commit()
     return order_view(row, request.app.state.settings)
 
@@ -71,7 +86,8 @@ async def subscription(user=Depends(require_user), db=Depends(db_session)):
         )
     ).scalar_one_or_none()
     return {
-        "plan": plan.code,
+        "plan": plan.code if plan else None,
+        **await access_view(db, user, plan),
         "ends_at": sub.ends_at if sub else None,
         "paid_until": last.ends_at if last else None,
     }

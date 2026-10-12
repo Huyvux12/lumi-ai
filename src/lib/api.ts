@@ -8,6 +8,13 @@ export class ApiError extends Error {
   }
 }
 export const requestId = () => crypto.randomUUID();
+export function notifyPlanChange(code: string) {
+  if (
+    typeof window !== "undefined" &&
+    ["PLAN_CLOSED", "PLAN_REQUIRED"].includes(code)
+  )
+    window.dispatchEvent(new Event("lumi:plan-changed"));
+}
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("X-Lumi-Request", "1");
@@ -21,6 +28,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
+    notifyPlanChange(data.code);
     throw new ApiError(
       data.message || "Không thể kết nối. Vui lòng thử lại.",
       data.code || "REQUEST_FAILED",

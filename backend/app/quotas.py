@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
-from .models import Plan, Subscription, Usage, now_ms
+from .models import Plan, Subscription, Usage, User, now_ms
+from .plan_access import PLAN_REQUIRED_MESSAGE, require_plan_open
 from .security import fail, lock_user
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -43,6 +44,9 @@ async def active_plan(db, code):
 
 
 async def entitlement(db, user_id, at=None):
+    user = await db.get(User, user_id)
+    if not user:
+        fail("AUTH_REQUIRED", "Vui lòng đăng nhập để tiếp tục.", 401)
     at = now_ms() if at is None else at
     sub = (
         await db.execute(
@@ -60,9 +64,20 @@ async def entitlement(db, user_id, at=None):
     if sub:
         plan = await db.get(Plan, sub.plan_id)
         return plan, f"premium:{sub.id}", sub
+    if user.signup_plan == "premium":
+        return None, "premium:pending", None
     plan = await active_plan(db, "free")
     month = datetime.fromtimestamp(at / 1000, VN).strftime("%Y-%m")
     return plan, f"free:{month}", None
+
+
+async def feature_entitlement(db, user_id):
+    plan, period, sub = await entitlement(db, user_id)
+    user = await db.get(User, user_id)
+    await require_plan_open(db, plan.code if plan else user.signup_plan)
+    if not plan:
+        fail("PLAN_REQUIRED", PLAN_REQUIRED_MESSAGE, 403)
+    return plan, period, sub
 
 
 async def totals(db, user_id, period, kind):
@@ -107,6 +122,7 @@ async def totals(db, user_id, period, kind):
 
 async def reserve(db, user_id, kind, request_key, amount, secondary=0):
     await lock_user(db, user_id)
+    plan, period, _ = await feature_entitlement(db, user_id)
     previous = (
         await db.execute(
             select(Usage).where(
@@ -118,7 +134,6 @@ async def reserve(db, user_id, kind, request_key, amount, secondary=0):
     ).scalar_one_or_none()
     if previous:
         return previous, False
-    plan, period, _ = await entitlement(db, user_id)
     values = await totals(db, user_id, period, kind)
     q = plan.quota
     over = False
@@ -175,9 +190,9 @@ async def finish(factory, usage_id, *, success, amount=None, secondary=None, pro
 async def admin_usage(db, user_id):
     plan, period, sub = await entitlement(db, user_id)
     return {
-        "plan": plan.code,
+        "plan": plan.code if plan else None,
         "period": period,
-        "limits": plan.quota,
+        "limits": plan.quota if plan else {},
         "chat": await totals(db, user_id, period, "chat"),
         "tts": await totals(db, user_id, period, "tts"),
         "stt": await totals(db, user_id, period, "stt"),

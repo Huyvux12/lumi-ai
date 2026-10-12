@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Check, CreditCard, Copy, QrCode } from "lucide-react";
 import { api, mutation, requestId } from "@/lib/api";
 import { refreshUser, useAuthReady, useUser } from "@/lib/auth";
-type Plan = { code: string; price_vnd: number; description: string };
+import type { PublicPlan } from "@/lib/plans";
+type Quote = {
+  amount_vnd: number;
+  list_price_vnd: number;
+  discount_percent: number;
+  promo_code: string | null;
+};
 type Order = {
   id: string;
   invoice: string;
@@ -18,9 +24,12 @@ type Order = {
   account: string;
   holder: string;
   environment: string;
+  list_price_vnd: number;
+  discount_percent: number;
+  promo_code: string | null;
 };
 type Subscription = {
-  plan: string;
+  plan: string | null;
   ends_at: number | null;
   paid_until: number | null;
 };
@@ -34,14 +43,18 @@ const statuses: Record<string, string> = {
   refunded: "Đã hoàn tiền",
   cancelled: "Đã hủy",
 };
-export function BillingView() {
+export function BillingView({ initialPromo = "" }: { initialPromo?: string }) {
   const user = useUser();
-  return <BillingAccount key={user?.id ?? "guest"} />;
+  return (
+    <BillingAccount key={user?.id ?? "guest"} initialPromo={initialPromo} />
+  );
 }
-function BillingAccount() {
+function BillingAccount({ initialPromo }: { initialPromo: string }) {
   const user = useUser();
   const ready = useAuthReady();
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [promoCode, setPromoCode] = useState(initialPromo.slice(0, 32));
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const [history, setHistory] = useState<Order[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -50,9 +63,24 @@ function BillingAccount() {
   const [copied, setCopied] = useState("");
   const key = useRef<string | null>(null);
   useEffect(() => {
-    api<Plan[]>("/plans")
-      .then(setPlans)
-      .catch((e) => setError(e.message));
+    let live = true;
+    const refreshPlans = () => {
+      void api<PublicPlan[]>("/plans")
+        .then((list) => {
+          if (live) setPlans(list);
+        })
+        .catch((error) => {
+          if (live) setError(error.message);
+        });
+    };
+    refreshPlans();
+    window.addEventListener("focus", refreshPlans);
+    window.addEventListener("lumi:plan-changed", refreshPlans);
+    return () => {
+      live = false;
+      window.removeEventListener("focus", refreshPlans);
+      window.removeEventListener("lumi:plan-changed", refreshPlans);
+    };
   }, []);
   useEffect(() => {
     if (!ready) return;
@@ -117,6 +145,23 @@ function BillingAccount() {
       clearInterval(timer);
     };
   }, [orderId, orderStatus]);
+  async function applyCode() {
+    if (!user || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setQuote(
+        await api<Quote>("/billing/quote", mutation({ promo_code: promoCode })),
+      );
+    } catch (error) {
+      setQuote(null);
+      setError(
+        error instanceof Error ? error.message : "Không thể áp dụng mã.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function buy() {
     if (!user || busy) return;
     setBusy(true);
@@ -125,10 +170,15 @@ function BillingAccount() {
     try {
       const result = await api<Order>(
         "/billing/orders",
-        mutation(undefined, key.current),
+        mutation({ promo_code: promoCode }, key.current),
       );
       setOrder(result);
       setHistory((old) => [result, ...old.filter((o) => o.id !== result.id)]);
+      if (result.status === "paid") {
+        key.current = null;
+        await refreshUser();
+        setSubscription(await api<Subscription>("/billing/subscription"));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chưa thể tạo QR.");
     } finally {
@@ -151,6 +201,14 @@ function BillingAccount() {
         <CreditCard className="size-4" />
         Gói của bạn
       </p>
+      {user?.plan_message && (
+        <p
+          role="status"
+          className="mt-5 rounded-2xl bg-amber-500/10 p-4 text-amber-200"
+        >
+          {user.plan_message}
+        </p>
+      )}
       <h1 className="text-3xl font-bold">
         Thêm không gian cho những câu chuyện
       </h1>
@@ -160,9 +218,13 @@ function BillingAccount() {
       </p>
       {subscription && (
         <p className="glass mt-6 rounded-2xl p-4">
-          Đang dùng{" "}
+          {subscription.plan ? "Gói tài khoản: " : "Chưa có gói sử dụng: "}
           <strong>
-            {subscription.plan === "premium" ? "Premium" : "Free"}
+            {subscription.plan === "premium"
+              ? "Premium"
+              : subscription.plan === "free"
+                ? "Free"
+                : "Chờ thanh toán Premium"}
           </strong>
           {subscription.plan === "premium" && subscription.paid_until && (
             <> · Đã thanh toán đến {date(subscription.paid_until)}</>
@@ -180,7 +242,11 @@ function BillingAccount() {
               {plan.code === "premium" ? "Premium" : "Free"}
             </h2>
             <p className="my-5 text-3xl font-bold">
-              {money(plan.price_vnd)}
+              {money(
+                plan.code === "premium" && quote
+                  ? quote.amount_vnd
+                  : plan.price_vnd,
+              )}
               {plan.code === "premium" && (
                 <span className="text-sm font-normal text-fg-2">
                   {" "}
@@ -188,6 +254,48 @@ function BillingAccount() {
                 </span>
               )}
             </p>
+            {plan.closed_message && (
+              <p className="mb-4 text-sm text-amber-200">
+                {plan.closed_message}
+              </p>
+            )}
+            {plan.code === "premium" && plan.enabled && user && (
+              <div className="mb-5 space-y-3">
+                <label className="block text-sm">
+                  Mã giảm giá
+                  <input
+                    className="field mt-2"
+                    maxLength={32}
+                    value={promoCode}
+                    disabled={busy || order?.status === "pending"}
+                    onChange={(event) => {
+                      setPromoCode(event.target.value);
+                      setQuote(null);
+                      key.current = null;
+                    }}
+                    placeholder="Nhập mã Premium"
+                  />
+                </label>
+                <button
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm disabled:opacity-50"
+                  disabled={busy || order?.status === "pending"}
+                  onClick={() => void applyCode()}
+                >
+                  Áp dụng mã
+                </button>
+                {quote && (
+                  <p className="text-sm text-accent">
+                    Giảm {quote.discount_percent}% · Thanh toán{" "}
+                    {money(quote.amount_vnd)}
+                  </p>
+                )}
+                {!quote && plan.discount_percent > 0 && (
+                  <p className="text-xs text-fg-3">
+                    Mã hợp lệ được giảm {plan.discount_percent}%.
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-sm leading-relaxed text-fg-2">
               {plan.description}
             </p>
@@ -213,32 +321,46 @@ function BillingAccount() {
             {plan.code === "premium" ? (
               user ? (
                 <button
-                  disabled={busy || order?.status === "pending"}
+                  disabled={
+                    !plan.enabled || busy || order?.status === "pending"
+                  }
                   onClick={() => {
                     if (order && order.status !== "pending") key.current = null;
                     void buy();
                   }}
                   className="btn-glow w-full rounded-full p-3 font-semibold disabled:opacity-50"
                 >
-                  {busy
-                    ? "Đang tạo QR…"
-                    : order?.status === "pending"
-                      ? "QR đang chờ thanh toán"
-                      : user.plan === "premium"
-                        ? "Gia hạn thêm 1 tháng"
-                        : "Nâng cấp bằng QR"}
+                  {!plan.enabled
+                    ? "Chờ Premium mở lại"
+                    : busy
+                      ? "Đang tạo QR…"
+                      : order?.status === "pending"
+                        ? "QR đang chờ thanh toán"
+                        : quote?.amount_vnd === 0
+                          ? "Kích hoạt Premium"
+                          : user.plan === "premium"
+                            ? "Gia hạn thêm 1 tháng"
+                            : "Nâng cấp bằng QR"}
                 </button>
               ) : (
                 <Link
-                  href="/login?next=/billing"
+                  href={
+                    plan.enabled
+                      ? "/signup?plan=premium&next=/billing"
+                      : "/signup"
+                  }
                   className="btn-glow block rounded-full p-3 text-center font-semibold"
                 >
-                  Đăng nhập để nâng cấp
+                  {plan.enabled ? "Đăng kí Premium" : "Xem trạng thái đăng ký"}
                 </Link>
               )
             ) : (
               <p className="py-3 text-center text-sm text-fg-3">
-                {user?.plan === "free" ? "Gói hiện tại" : "Bắt đầu miễn phí"}
+                {!plan.enabled
+                  ? "Chọn Premium để sử dụng tính năng hoặc chờ Free mở lại."
+                  : user?.plan === "free"
+                    ? "Gói hiện tại"
+                    : "Bắt đầu miễn phí"}
               </p>
             )}
           </section>
@@ -261,6 +383,13 @@ function BillingAccount() {
           <p className="mt-2 text-accent">
             {statuses[order.status] ?? order.status}
           </p>
+          {order.promo_code && (
+            <p className="mt-3 text-sm">
+              Mã {order.promo_code} · Giảm {order.discount_percent}% từ{" "}
+              {money(order.list_price_vnd)} · Thanh toán{" "}
+              {money(order.amount_vnd)}
+            </p>
+          )}
           {order.environment === "test" && (
             <p className="mt-3 rounded-lg bg-amber-500/15 p-3 text-sm text-amber-200">
               Môi trường thử nghiệm. Không chuyển tiền thật vào QR này.
@@ -308,8 +437,8 @@ function BillingAccount() {
                 </p>
                 {copied && <p className="text-accent">Đã sao chép.</p>}
                 <p className="text-fg-2">
-                  Giữ nguyên số tiền và nội dung chuyển khoản. PersonaX tự kiểm tra
-                  xác nhận thanh toán.
+                  Giữ nguyên số tiền và nội dung chuyển khoản. PersonaX tự kiểm
+                  tra xác nhận thanh toán.
                 </p>
                 <p className="text-fg-3">
                   QR có hiệu lực đến {date(order.expires_at)}.
