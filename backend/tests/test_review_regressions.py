@@ -7,10 +7,10 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app import auth_api, catalog_api, chat_api, quotas, worker
-from app.maintenance import cleanup_once, recover_interrupted
+from app.maintenance import cleanup_once, recover_interrupted, rebuild_search
 from app.models import AudioJob, Character, CharacterAvatar, Message, Order, Usage, User, now_ms
 from app.security import password_work, totp
 from conftest import conversation, provider, register, turn
@@ -484,6 +484,25 @@ async def test_history_composite_cursor_keeps_timestamp_ties(env):
     ).json()
     assert len(first) == 100 and len(second) == 1
     assert len({m["id"] for m in first + second}) == 101
+
+
+async def test_restart_rebuilds_search_after_legacy_revision_writes(env):
+    app, client, _ = env
+    await register(client)
+    created = (await client.post("/api/v1/characters", json=profile())).json()
+    # Bulk SQL bypasses the new mapper events, just like the previous app revision.
+    async with app.state.db() as db:
+        await db.execute(
+            update(Character)
+            .where(Character.id == created["id"])
+            .values(data=profile(name="Legacy rename", tags=["New legacy tag"]))
+        )
+        await db.commit()
+    await rebuild_search(app.state.db)
+    for query in ({"q": "Legacy rename"}, {"tag": "New legacy tag"}):
+        assert [r["id"] for r in (await client.get("/api/v1/characters", params=query)).json()] == [
+            created["id"]
+        ]
 
 
 async def test_reconciliation_rotates_past_oldest_100_even_after_provider_failure(env, monkeypatch):

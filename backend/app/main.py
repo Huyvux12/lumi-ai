@@ -10,7 +10,7 @@ from .config import Settings
 from .db import Base, database
 from .security import COOKIE, RateLimiter, passwords
 from .seed import seed
-from .maintenance import cleanup_once, recover_interrupted
+from .maintenance import cleanup_once, recover_interrupted, rebuild_search
 from . import admin_api, auth_api, billing_api, catalog_api, chat_api, speech_api
 
 log = logging.getLogger("lumi")
@@ -88,6 +88,7 @@ def create_app(settings=None, *, transport=None):
         async with factory() as db:
             await seed(db)
         await recover_interrupted(factory)
+        await rebuild_search(factory)
         app.state.http = httpx.AsyncClient(
             timeout=httpx.Timeout(90, connect=15),
             transport=transport,

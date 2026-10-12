@@ -1,11 +1,33 @@
 """Lease recovery and conservative cleanup of database-backed media."""
 
 from sqlalchemy import delete, select
+import json
 from .avatars import UNATTACHED_TTL_MS, avatar_referenced
-from .models import AudioJob, AuthToken, CharacterAvatar, Message, Session, Usage, now_ms
+from .models import AudioJob, AuthToken, Character, CharacterAvatar, Message, Session, Usage, now_ms
+from .search import character_search
 from .security import lock_user
 
 ORPHAN_GRACE_MS = 300000
+
+
+async def rebuild_search(factory):
+    # An older revision can still write after the additive migration, including
+    # during rollback. Refresh projections before the single worker accepts traffic.
+    cursor = None
+    while True:
+        async with factory() as db:
+            query = select(Character).order_by(Character.id).limit(200)
+            if cursor is not None:
+                query = query.where(Character.id > cursor)
+            rows = (await db.execute(query)).scalars().all()
+            for row in rows:
+                search, tags = character_search(row.data), json.dumps(row.data.get("tags", []))
+                if row.search_text != search or row.tags_text != tags:
+                    row.search_text, row.tags_text = search, tags
+            await db.commit()
+            if not rows:
+                return
+            cursor = rows[-1].id
 
 
 async def recover_interrupted(factory):
