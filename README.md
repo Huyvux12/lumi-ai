@@ -108,6 +108,11 @@ Tokenizer Qwen được đóng gói từ [nguồn chính thức](https://hugging
 
 ## Database và triển khai
 
+Nhánh `dev` triển khai lên AWS ECS Fargate qua GitHub Actions, ECR và GitHub OIDC.
+Xem [hướng dẫn AWS](deploy/aws/README.md) để tạo CloudFormation stack, cấu hình
+Secrets Manager và ba biến GitHub cần thiết. Workflow chỉ triển khai sau khi checks
+và migration thành công; cấu hình Compose/DigitalOcean bên dưới vẫn dùng được riêng.
+
 Schema và migrations ở `backend/migrations`; seed idempotent ở `backend/app/seed.py`. Timestamp lưu dưới dạng Unix milliseconds UTC (để SQLite và PostgreSQL dùng cùng DTO); tính kỳ/ngày theo `Asia/Ho_Chi_Minh`. PostgreSQL khóa dòng user để serialize reserve/thanh toán/gia hạn, kèm unique constraints; SQLite dev serialize transaction bằng `BEGIN IMMEDIATE`.
 
 Docker Compose cung cấp PostgreSQL 17, Redis 8, backend, frontend:

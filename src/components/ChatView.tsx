@@ -121,6 +121,7 @@ export function ChatView({
   useEffect(() => {
     if (!authReady) return;
     const versions = epoch;
+    const callVersions = callEpoch;
     const version = ++versions.current;
     conversationRef.current = null;
     busy.current = false;
@@ -169,7 +170,7 @@ export function ChatView({
     }
     return () => {
       versions.current++;
-      callEpoch.current++;
+      callVersions.current++;
       callActive.current = false;
       callAbort.current?.abort();
       micStream.current?.getTracks().forEach((track) => track.stop());
@@ -550,8 +551,10 @@ export function ChatView({
       setError(e instanceof Error ? e.message : "Không thể mở microphone.");
     }
   }
-  sendRef.current = send;
-  listenRef.current = listen;
+  useEffect(() => {
+    sendRef.current = send;
+    listenRef.current = listen;
+  });
   const waitingFirstToken = streaming && messages.at(-1)?.content === "";
   const callLabel =
     callMode === "listening"

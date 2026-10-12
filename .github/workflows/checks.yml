@@ -1,10 +1,65 @@
 name: Checks
 on:
   push:
+    branches-ignore: [dev]
   pull_request:
+  workflow_call:
+permissions:
+  contents: read
 jobs:
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          load: true
+          tags: lumi-backend-check
+          cache-from: type=gha,scope=aws-backend
+          cache-to: type=gha,mode=max,scope=aws-backend
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: lumi-frontend-check
+          build-args: PYTHON_API_URL=http://127.0.0.1:8000
+          cache-from: type=gha,scope=aws-frontend
+          cache-to: type=gha,mode=max,scope=aws-frontend
+      - name: Smoke test images sharing the ECS network layout
+        shell: bash
+        run: |
+          docker run -d --name backend-check \
+            -e DATABASE_URL=sqlite+aiosqlite:////data/check.db \
+            -p 127.0.0.1:8000:8000 -p 127.0.0.1:3000:3000 lumi-backend-check
+          docker run -d --name frontend-check --network container:backend-check lumi-frontend-check
+          curl --fail --retry 30 --retry-delay 2 --retry-all-errors http://127.0.0.1:8000/health
+          curl --fail --retry 30 --retry-delay 2 --retry-all-errors --output /dev/null http://127.0.0.1:3000/welcome
+          curl --fail --output /dev/null http://127.0.0.1:3000/characters/kaito-kid.webp
+          curl --fail --output /dev/null http://127.0.0.1:3000/api/v1/characters
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs backend-check || true
+          docker logs frontend-check || true
+      - name: Clean up smoke test
+        if: always()
+        run: docker rm -f frontend-check backend-check || true
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install cfn-lint==1.57.2
+      - run: cfn-lint deploy/aws/stack.yaml
+      - run: python -m unittest discover -s scripts/tests -v
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,6 +71,7 @@ jobs:
         env: {NEXT_TELEMETRY_DISABLED: "1"}
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17-alpine

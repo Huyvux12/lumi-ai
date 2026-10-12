@@ -1,0 +1,399 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: PersonaX dev on ECS Fargate; GitHub OIDC, ECR, HTTPS ALB and persistent audio. Uses existing VPC, PostgreSQL, Redis and Secrets Manager configuration.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    ref: deploy/aws/README.md
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet::Id
+  AllowedHttpsCidr:
+    Type: String
+    Description: IPv4 client CIDR allowed to access dev over HTTPS; explicitly choose your access scope.
+    AllowedPattern: '(\d{1,3}\.){3}\d{1,3}/\d{1,2}'
+  CertificateArn:
+    Type: String
+    Description: Validated ACM certificate in this region for the application's DNS name.
+    AllowedPattern: 'arn:aws:acm:.*:certificate/.*'
+  PublicAppUrl:
+    Type: String
+    AllowedPattern: 'https://[^/]+.*'
+    Description: HTTPS origin matching the certificate and DNS record, without a trailing slash.
+  BackendSecretArn:
+    Type: String
+    Description: Existing JSON secret containing the keys listed in deploy/aws/README.md. No plaintext values.
+    AllowedPattern: 'arn:aws:secretsmanager:.*:secret:.*'
+  SecretKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: Optional customer-managed KMS key ARN for the backend secret; leave empty for aws/secretsmanager.
+  GitHubOidcSubject:
+    Type: String
+    Default: repo:Huyvux12/lumi-ai:ref:refs/heads/dev
+    Description: Exact GitHub OIDC sub claim for this repository's dev branch. No environment is used by the workflow.
+    AllowedPattern: 'repo:.+:ref:refs/heads/dev'
+Conditions:
+  CustomSecretKey: !Not [!Equals [!Ref SecretKmsKeyArn, '']]
+Resources:
+  # Immutable commit tags preserve reproducible releases. Retain registries on deletion.
+  FrontendRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-frontend'
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+  BackendRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-backend'
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+      ClusterSettings: [{Name: containerInsights, Value: enabled}]
+  Logs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/ecs/${AWS::StackName}'
+      RetentionInDays: 30
+  # Only the ALB accepts client ingress. Tasks have no public IP and expose no backend port.
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS access to the dev load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !Ref AllowedHttpsCidr}
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 3000, ToPort: 3000, DestinationSecurityGroupId: !Ref TaskSecurityGroup}
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private application tasks; egress for database, Redis, AWS and external providers
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - {IpProtocol: '-1', CidrIp: 0.0.0.0/0}
+  TaskIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref TaskSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+  StorageSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: NFS from application tasks only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 2049, ToPort: 2049, SourceSecurityGroupId: !Ref TaskSecurityGroup}
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 2049, ToPort: 2049, DestinationSecurityGroupId: !Ref TaskSecurityGroup}
+  # Shared encrypted storage preserves audio across replacements. Retention needs owner cleanup.
+  AudioStorage:
+    Type: AWS::EFS::FileSystem
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Encrypted: true
+      BackupPolicy: {Status: ENABLED}
+      FileSystemPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 'elasticfilesystem:*'
+            Resource: '*'
+            Condition: {Bool: {'aws:SecureTransport': 'false'}}
+          - Effect: Allow
+            Principal: {AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'}
+            Action: ['elasticfilesystem:ClientMount', 'elasticfilesystem:ClientWrite']
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                aws:PrincipalArn: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-task'
+              Bool: {'elasticfilesystem:AccessedViaMountTarget': 'true'}
+  AudioAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref AudioStorage
+      # Enforced identity matches the backend's non-root Docker user.
+      PosixUser: {Uid: '1000', Gid: '1000'}
+      RootDirectory:
+        Path: /lumi
+        CreationInfo: {OwnerUid: '1000', OwnerGid: '1000', Permissions: '0700'}
+  MountA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AudioStorage
+      SubnetId: !Ref PrivateSubnetA
+      SecurityGroups: [!Ref StorageSecurityGroup]
+  MountB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AudioStorage
+      SubnetId: !Ref PrivateSubnetB
+      SecurityGroups: [!Ref StorageSecurityGroup]
+  # Execution role pulls the two images, writes logs, and resolves only the specified secret.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}
+              ArnLike: {aws:SourceArn: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: execution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: ['ecr:BatchCheckLayerAvailability', 'ecr:GetDownloadUrlForLayer', 'ecr:BatchGetImage']
+                Resource: [!GetAtt FrontendRepository.Arn, !GetAtt BackendRepository.Arn]
+              - Effect: Allow
+                Action: ['logs:CreateLogStream', 'logs:PutLogEvents']
+                Resource: !GetAtt Logs.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref BackendSecretArn
+              - !If
+                - CustomSecretKey
+                - Effect: Allow
+                  Action: kms:Decrypt
+                  Resource: !Ref SecretKmsKeyArn
+                  Condition:
+                    StringEquals: {kms:ViaService: !Sub 'secretsmanager.${AWS::Region}.amazonaws.com'}
+                - !Ref AWS::NoValue
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-task'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}
+              ArnLike: {aws:SourceArn: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: audio
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['elasticfilesystem:ClientMount', 'elasticfilesystem:ClientWrite']
+                Resource: !GetAtt AudioStorage.Arn
+                Condition:
+                  StringEquals: {elasticfilesystem:AccessPointArn: !GetAtt AudioAccessPoint.Arn}
+  # This is the canonical configuration. GHA copies it and replaces images by digest.
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '1024'
+      Memory: '2048'
+      RuntimePlatform: {CpuArchitecture: X86_64, OperatingSystemFamily: LINUX}
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Volumes:
+        - Name: audio
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref AudioStorage
+            TransitEncryption: ENABLED
+            AuthorizationConfig: {AccessPointId: !Ref AudioAccessPoint, IAM: ENABLED}
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Sub '${BackendRepository.RepositoryUri}:bootstrap'
+          Essential: true
+          # Migrations run once in a separate task, never on API restarts.
+          Command: [python, -m, uvicorn, 'app.main:app', --host, 0.0.0.0, --port, '8000', --no-access-log]
+          StopTimeout: 120
+          Environment:
+            - {Name: APP_ENV, Value: production}
+            - {Name: AUTO_MIGRATE, Value: 'false'}
+            - {Name: DEMO_LLM, Value: 'false'}
+            - {Name: DATA_DIR, Value: /data}
+            - {Name: PUBLIC_APP_URL, Value: !Ref PublicAppUrl}
+          Secrets:
+            - {Name: DATABASE_URL, ValueFrom: !Sub '${BackendSecretArn}:DATABASE_URL::'}
+            - {Name: REDIS_URL, ValueFrom: !Sub '${BackendSecretArn}:REDIS_URL::'}
+            - {Name: MFA_ENCRYPTION_KEY, ValueFrom: !Sub '${BackendSecretArn}:MFA_ENCRYPTION_KEY::'}
+            - {Name: GROQ_API_KEY, ValueFrom: !Sub '${BackendSecretArn}:GROQ_API_KEY::'}
+            - {Name: GOOGLE_API_KEY, ValueFrom: !Sub '${BackendSecretArn}:GOOGLE_API_KEY::'}
+            - {Name: SEPAY_ENV, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_ENV::'}
+            - {Name: SEPAY_WEBHOOK_SECRET, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_WEBHOOK_SECRET::'}
+            - {Name: SEPAY_API_TOKEN, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_API_TOKEN::'}
+            - {Name: SEPAY_BANK_CODE, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_BANK_CODE::'}
+            - {Name: SEPAY_ACCOUNT_NUMBER, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_ACCOUNT_NUMBER::'}
+            - {Name: SEPAY_ACCOUNT_HOLDER, ValueFrom: !Sub '${BackendSecretArn}:SEPAY_ACCOUNT_HOLDER::'}
+            - {Name: SMTP_HOST, ValueFrom: !Sub '${BackendSecretArn}:SMTP_HOST::'}
+            - {Name: SMTP_USER, ValueFrom: !Sub '${BackendSecretArn}:SMTP_USER::'}
+            - {Name: SMTP_PASSWORD, ValueFrom: !Sub '${BackendSecretArn}:SMTP_PASSWORD::'}
+            - {Name: MAIL_FROM, ValueFrom: !Sub '${BackendSecretArn}:MAIL_FROM::'}
+          MountPoints: [{SourceVolume: audio, ContainerPath: /data}]
+          HealthCheck:
+            Command: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: {awslogs-group: !Ref Logs, awslogs-region: !Ref 'AWS::Region', awslogs-stream-prefix: backend}
+        - Name: frontend
+          Image: !Sub '${FrontendRepository.RepositoryUri}:bootstrap'
+          Essential: true
+          PortMappings: [{ContainerPort: 3000}]
+          DependsOn: [{ContainerName: backend, Condition: HEALTHY}]
+          StopTimeout: 120
+          HealthCheck:
+            Command: [CMD, node, -e, "fetch('http://127.0.0.1:3000/welcome').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: {awslogs-group: !Ref Logs, awslogs-region: !Ref 'AWS::Region', awslogs-stream-prefix: frontend}
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      LoadBalancerAttributes:
+        - {Key: idle_timeout.timeout_seconds, Value: '300'}
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 3000
+      TargetType: ip
+      HealthCheckPath: /welcome
+      Matcher: {HttpCode: '200'}
+      TargetGroupAttributes:
+        - {Key: deregistration_delay.timeout_seconds, Value: '120'}
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates: [{CertificateArn: !Ref CertificateArn}]
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      DefaultActions: [{Type: forward, TargetGroupArn: !Ref TargetGroup}]
+  # Zero tasks permits bootstrap without images. GHA sets count=1 after migration succeeds.
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: [Listener, MountA, MountB]
+    Properties:
+      ServiceName: !Ref AWS::StackName
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      PlatformVersion: '1.4.0'
+      DesiredCount: 0
+      TaskDefinition: !Ref TaskDefinition
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker: {Enable: true, Rollback: true}
+        # Single process owns streaming tasks. Stop the old process before starting the new.
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
+          SecurityGroups: [!Ref TaskSecurityGroup]
+      LoadBalancers: [{ContainerName: frontend, ContainerPort: 3000, TargetGroupArn: !Ref TargetGroup}]
+  # Assumes an account-level GitHub OIDC provider exists. Never grants secret-read or IaC mutation.
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Ref GitHubOidcSubject
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: ['ecr:BatchCheckLayerAvailability', 'ecr:InitiateLayerUpload', 'ecr:UploadLayerPart', 'ecr:CompleteLayerUpload', 'ecr:PutImage', 'ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+                Resource: [!GetAtt FrontendRepository.Arn, !GetAtt BackendRepository.Arn]
+              # RegisterTaskDefinition and DescribeTaskDefinition do not support resource scoping.
+              - Effect: Allow
+                Action: ['ecs:RegisterTaskDefinition', 'ecs:DescribeTaskDefinition']
+                Resource: '*'
+              - Effect: Allow
+                Action: ecs:RunTask
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-migration:*'
+                Condition: {ArnEquals: {ecs:cluster: !GetAtt Cluster.Arn}}
+              - Effect: Allow
+                Action: ['ecs:DescribeTasks', 'ecs:StopTask']
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task/${Cluster}/*'
+              - Effect: Allow
+                Action: ['ecs:UpdateService', 'ecs:DescribeServices']
+                Resource: !Ref Service
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: [!GetAtt ExecutionRole.Arn, !GetAtt TaskRole.Arn]
+                Condition: {StringEquals: {iam:PassedToService: ecs-tasks.amazonaws.com}}
+Outputs:
+  DeployRoleArn: {Value: !GetAtt GitHubDeployRole.Arn}
+  FrontendRepositoryUri: {Value: !GetAtt FrontendRepository.RepositoryUri}
+  BackendRepositoryUri: {Value: !GetAtt BackendRepository.RepositoryUri}
+  ClusterName: {Value: !Ref Cluster}
+  ServiceName: {Value: !GetAtt Service.Name}
+  TaskDefinitionArn: {Value: !Ref TaskDefinition}
+  PrivateSubnetIds: {Value: !Join [',', [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]}
+  TaskSecurityGroupId: {Value: !Ref TaskSecurityGroup}
+  LoadBalancerDnsName: {Value: !GetAtt LoadBalancer.DNSName}
+  LoadBalancerHostedZoneId: {Value: !GetAtt LoadBalancer.CanonicalHostedZoneID}
+  LogGroupName: {Value: !Ref Logs}

@@ -1,0 +1,12 @@
+[
+  {"ParameterKey": "VpcId", "ParameterValue": "<existing-vpc-id>"},
+  {"ParameterKey": "PublicSubnetA", "ParameterValue": "<public-subnet-in-az-a>"},
+  {"ParameterKey": "PublicSubnetB", "ParameterValue": "<public-subnet-in-az-b>"},
+  {"ParameterKey": "PrivateSubnetA", "ParameterValue": "<private-subnet-in-az-a>"},
+  {"ParameterKey": "PrivateSubnetB", "ParameterValue": "<private-subnet-in-az-b>"},
+  {"ParameterKey": "AllowedHttpsCidr", "ParameterValue": "<your-client-ipv4-cidr>"},
+  {"ParameterKey": "CertificateArn", "ParameterValue": "<validated-regional-acm-certificate-arn>"},
+  {"ParameterKey": "PublicAppUrl", "ParameterValue": "https://<your-dev-domain>"},
+  {"ParameterKey": "BackendSecretArn", "ParameterValue": "<backend-json-secret-arn>"},
+  {"ParameterKey": "SecretKmsKeyArn", "ParameterValue": ""}
+]

@@ -1,59 +1,101 @@
-name: Deploy
+name: Deploy dev to AWS
 on:
   push:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
+
+# Never interrupt a migration or replace a deployment while it is being verified.
+concurrency:
+  group: aws-dev
+  cancel-in-progress: false
 
 jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
   deploy:
+    if: github.ref == 'refs/heads/dev'
+    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_STACK_NAME: ${{ vars.AWS_STACK_NAME }}
+      AWS_PAGER: ''
     steps:
+      - name: Check deployment configuration
+        shell: bash
+        run: |
+          missing=0
+          for name in AWS_REGION AWS_ROLE_ARN AWS_STACK_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Set repository variable $name. See deploy/aws/README.md."
+              missing=1
+            fi
+          done
+          exit "$missing"
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: lumi-dev-${{ github.run_id }}
+      - name: Read infrastructure outputs
+        id: infrastructure
+        shell: bash
+        run: |
+          aws cloudformation describe-stacks --stack-name "$AWS_STACK_NAME" > "$RUNNER_TEMP/stack.json"
+          python - "$RUNNER_TEMP/stack.json" <<'PY'
+          import json, os, sys
+          outputs = {o['OutputKey']: o['OutputValue'] for o in json.load(open(sys.argv[1]))['Stacks'][0]['Outputs']}
+          required = ['FrontendRepositoryUri', 'BackendRepositoryUri', 'TaskDefinitionArn',
+                      'ClusterName', 'ServiceName', 'PrivateSubnetIds', 'TaskSecurityGroupId']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as target:
+              for key in required:
+                  value = outputs[key]
+                  if not value or '\n' in value or '\r' in value:
+                      raise ValueError(f'Invalid infrastructure output: {key}')
+                  print(f'{key}={value}', file=target)
+          PY
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push backend
+        id: backend
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
+          platforms: linux/amd64
           push: true
-          tags: ghcr.io/huyvux12/lumi-ai-backend:main
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-      - uses: docker/build-push-action@v6
+          tags: ${{ steps.infrastructure.outputs.BackendRepositoryUri }}:${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          cache-from: type=gha,scope=aws-backend
+          cache-to: type=gha,mode=max,scope=aws-backend
+      - name: Build and push frontend
+        id: frontend
+        uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64
           push: true
-          tags: ghcr.io/huyvux12/lumi-ai-frontend:main
-          build-args: PYTHON_API_URL=http://backend:8000
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-      - name: Update the droplet
-        uses: appleboy/ssh-action@v1.2.2
+          tags: ${{ steps.infrastructure.outputs.FrontendRepositoryUri }}:${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # Containers in one awsvpc task communicate over loopback. This is baked into Next rewrites.
+          build-args: PYTHON_API_URL=http://127.0.0.1:8000
+          cache-from: type=gha,scope=aws-frontend
+          cache-to: type=gha,mode=max,scope=aws-frontend
+      - name: Migrate, deploy and verify the exact revision
         env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER: ${{ github.actor }}
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          command_timeout: 20m
-          envs: GHCR_TOKEN,GHCR_USER
-          script: |
-            set -euo pipefail
-            if [ ! -d /opt/lumi/.git ]; then
-              git clone --branch main --depth 1 https://github.com/Huyvux12/lumi-ai.git /opt/lumi
-            fi
-            cd /opt/lumi
-            git fetch --depth 1 origin main
-            git reset --hard FETCH_HEAD
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker logout ghcr.io
+          ECS_TASK_DEFINITION: ${{ steps.infrastructure.outputs.TaskDefinitionArn }}
+          ECS_CLUSTER: ${{ steps.infrastructure.outputs.ClusterName }}
+          ECS_SERVICE: ${{ steps.infrastructure.outputs.ServiceName }}
+          ECS_SUBNETS: ${{ steps.infrastructure.outputs.PrivateSubnetIds }}
+          ECS_SECURITY_GROUP: ${{ steps.infrastructure.outputs.TaskSecurityGroupId }}
+          FRONTEND_IMAGE: ${{ steps.infrastructure.outputs.FrontendRepositoryUri }}@${{ steps.frontend.outputs.digest }}
+          BACKEND_IMAGE: ${{ steps.infrastructure.outputs.BackendRepositoryUri }}@${{ steps.backend.outputs.digest }}
+        run: python scripts/deploy_ecs.py

@@ -84,6 +84,9 @@ import pytest
         {"content": "UNKNOWN"},
         {"content": "XLUMI0000000000000000X"},
         {"transferAmount": float("inf")},
+        {"transferAmount": float("-inf")},
+        {"transferAmount": float("nan")},
+        {"transferAmount": float("inf"), "metadata": {"values": [float("nan"), float("-inf")]}},
     ],
 )
 async def test_invalid_payment_never_activates(env, changes):
@@ -92,9 +95,14 @@ async def test_invalid_payment_never_activates(env, changes):
     o = await order(client)
     response = await webhook(client, cfg, payload(o, **changes))
     assert response.status_code == 200
+    assert (await webhook(client, cfg, payload(o, **changes))).status_code == 200
     assert (await client.get("/api/v1/billing/subscription")).json()["plan"] == "free"
     async with app.state.db() as db:
         assert await db.scalar(select(func.count()).select_from(Subscription)) == 0
+        event = await db.scalar(select(PaymentEvent))
+        assert event.status == "review"
+        # The review event must remain readable and serializable as standard JSON.
+        json.dumps(event.payload, allow_nan=False)
 
 
 def test_original_month_anchor():

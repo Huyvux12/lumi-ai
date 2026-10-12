@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 COPY . .
 RUN pip install --no-cache-dir .
-RUN useradd --create-home lumi && mkdir /data && chown lumi:lumi /data
+RUN groupadd --gid 1000 lumi && useradd --create-home --uid 1000 --gid lumi lumi && mkdir /data && chown lumi:lumi /data
 USER lumi
 ENV DATA_DIR=/data AUTO_MIGRATE=false
 EXPOSE 8000

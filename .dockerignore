@@ -3,6 +3,12 @@
 .next
 node_modules
 backend
+deploy
+.codex-runs
+qa
+image
+reference
+.claude
 **/__pycache__
 **/.venv
 **/.data
