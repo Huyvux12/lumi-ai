@@ -136,7 +136,8 @@ async def test_slow_chat_renews_lease_and_stays_metered(env, monkeypatch):
     from app.token_budget import tokenizer
 
     tokenizer()  # Keep cold tokenizer loading out of the accelerated lease clock.
-    monkeypatch.setattr(quotas, "LEASE_MS", 200)
+    # Keep the lease shorter than the provider wait but allow for database/CI scheduling.
+    monkeypatch.setattr(quotas, "LEASE_MS", 1000)
     monkeypatch.setattr(quotas, "LEASE_HEARTBEAT_SECONDS", 0.02)
     started = asyncio.Event()
     release = asyncio.Event()
@@ -151,7 +152,7 @@ async def test_slow_chat_renews_lease_and_stays_metered(env, monkeypatch):
     pending = asyncio.create_task(turn(client, ident))
     await asyncio.wait_for(started.wait(), 2)
     try:
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(1.25)
         await cleanup_once(app)
         async with app.state.db() as db:
             ledger = (await db.execute(select(Usage))).scalar_one()
@@ -170,11 +171,11 @@ async def test_slow_initial_audio_response_renews_lease(env, monkeypatch):
     app, client, _ = env
     await register(client)
     reply = await turn(client, await conversation(client))
-    monkeypatch.setattr(quotas, "LEASE_MS", 200)
+    monkeypatch.setattr(quotas, "LEASE_MS", 1000)
     monkeypatch.setattr(quotas, "LEASE_HEARTBEAT_SECONDS", 0.02)
 
     async def slow(request):
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(1.25)
         return provider(request)
 
     await app.state.http.aclose()
