@@ -27,7 +27,8 @@ class BodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        maximum = 6 * 1024 * 1024 if scope["path"].endswith("/speech/transcriptions") else 256 * 1024
+        upload = scope["path"].endswith("/speech/transcriptions") or scope["path"] == "/api/v1/avatars"
+        maximum = 6 * 1024 * 1024 if upload else 256 * 1024
         content_length = dict(scope.get("headers", [])).get(b"content-length", b"0")
         try:
             oversized = int(content_length) > maximum

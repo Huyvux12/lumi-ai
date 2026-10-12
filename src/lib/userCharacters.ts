@@ -17,6 +17,7 @@ export const LIMITS = {
   tagline: [10, 90],
   description: [20, 600],
   persona: [30, 1200],
+  scenario: [0, 1200],
   greeting: [10, 600],
   tags: [1, 4],
 } as const;
@@ -80,12 +81,25 @@ export async function fetchCharacter(id: string) {
   return c;
 }
 export async function saveUserChar(c: UserCharacter) {
-  const { name, tagline, description, persona, greeting, tags, hue, seed } = c;
+  const {
+    name,
+    tagline,
+    description,
+    persona,
+    scenario,
+    avatar_id,
+    greeting,
+    tags,
+    hue,
+    seed,
+  } = c;
   const body = {
     name,
     tagline,
     description,
     persona,
+    scenario: scenario ?? "",
+    avatar_id: avatar_id ?? null,
     greeting,
     tags,
     hue,
@@ -101,6 +115,14 @@ export async function saveUserChar(c: UserCharacter) {
   chars = [saved, ...chars.filter((x) => x.id !== saved.id)];
   notify();
   return saved;
+}
+export async function uploadCharacterAvatar(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return api<{ avatar_id: string; image: string }>("/avatars", {
+    method: "POST",
+    body,
+  });
 }
 export async function deleteUserChar(id: string) {
   await api(`/characters/${id}`, { method: "DELETE" });

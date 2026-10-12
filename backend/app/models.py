@@ -1,6 +1,6 @@
 import time
 import uuid
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -61,6 +61,14 @@ class Character(Base):
     voice_id: Mapped[str] = mapped_column(String(40), default="kore-warm")
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
     updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, index=True)
+
+
+class CharacterAvatar(Base):
+    __tablename__ = "character_avatars"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
 class Scene(Base):

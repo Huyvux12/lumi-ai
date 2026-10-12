@@ -116,8 +116,17 @@ export async function streamReply(
   signal?: AbortSignal,
 ) {
   if (!params.character) throw new Error("Thiếu hồ sơ nhân vật thử nghiệm.");
-  const { name, tagline, description, persona, greeting, tags, hue, seed } =
-    params.character;
+  const {
+    name,
+    tagline,
+    description,
+    persona,
+    scenario,
+    greeting,
+    tags,
+    hue,
+    seed,
+  } = params.character;
   const result = await api<{ content: string; mode: string }>("/chat/preview", {
     ...mutation(
       {
@@ -126,6 +135,7 @@ export async function streamReply(
           tagline,
           description,
           persona,
+          scenario: scenario ?? "",
           greeting,
           tags,
           hue,

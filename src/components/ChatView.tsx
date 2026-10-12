@@ -613,6 +613,7 @@ function ChatSession({
         <div className="relative">
           <Portrait
             seed={c.seed ?? c.id}
+            image={c.image}
             hue={c.hue}
             className="size-10 shrink-0 rounded-full"
           />
@@ -699,6 +700,7 @@ function ChatSession({
               />
               <Portrait
                 seed={c.seed ?? c.id}
+                image={c.image}
                 hue={c.hue}
                 className="relative size-24 rounded-full ring-2 ring-white/15"
               />
@@ -737,6 +739,7 @@ function ChatSession({
                 >
                   <Portrait
                     seed={c.seed ?? c.id}
+                    image={c.image}
                     hue={c.hue}
                     className="size-8 shrink-0 rounded-full"
                   />
@@ -776,6 +779,7 @@ function ChatSession({
               >
                 <Portrait
                   seed={c.seed ?? c.id}
+                  image={c.image}
                   hue={c.hue}
                   className="size-8 shrink-0 rounded-full"
                 />
@@ -871,6 +875,7 @@ function ChatSession({
           <div className="glass flex w-full items-center gap-3 rounded-3xl px-4 py-3">
             <Portrait
               seed={c.seed ?? c.id}
+              image={c.image}
               hue={c.hue}
               className={`size-12 shrink-0 rounded-full ${callMode === "listening" ? "ring-2 ring-emerald-400" : callMode === "speaking" ? "ring-2 ring-accent" : "ring-2 ring-white/20"}`}
             />

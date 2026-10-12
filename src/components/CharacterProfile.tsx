@@ -57,6 +57,7 @@ export function CharacterProfile({
       >
         <Portrait
           seed={c.seed ?? c.id}
+          image={c.image}
           hue={c.hue}
           className="size-full scale-125 object-cover opacity-40 blur-3xl"
         />
@@ -161,6 +162,7 @@ export function CharacterProfile({
               >
                 <Portrait
                   seed={c.seed ?? c.id}
+                  image={c.image}
                   hue={c.hue}
                   className="size-48 sm:size-56"
                 />

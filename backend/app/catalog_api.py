@@ -1,7 +1,9 @@
 import unicodedata
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import func, or_, select
-from .models import Character, Conversation, Message, Report, Scene, Voice, now_ms, uid
+from .models import Character, CharacterAvatar, Conversation, Message, Report, Scene, Voice, now_ms, uid
+from .avatars import read_avatar, require_owned_avatar
 from .quotas import entitlement
 from .schemas import CharacterInput, ConversationInput, Input
 from .security import db_session, fail, lock_user, optional_user, require_feature_user, require_user
@@ -35,6 +37,7 @@ async def character_view(db, c):
     )
     return {
         **c.data,
+        "image": f"/api/v1/avatars/{c.data['avatar_id']}" if c.data.get("avatar_id") else c.data.get("image"),
         "id": c.id,
         "owner": owner,
         "createdAt": c.created_at,
@@ -44,6 +47,37 @@ async def character_view(db, c):
         "voice_id": c.voice_id,
         "chats": count,
     }
+
+
+@router.post("/avatars")
+async def upload_avatar(
+    request: Request, file: UploadFile, user=Depends(require_feature_user), db=Depends(db_session)
+):
+    await request.app.state.limiter.check(f"avatar:{user.id}", 30, 3600)
+    avatar = CharacterAvatar(owner_id=user.id, content=await read_avatar(file))
+    db.add(avatar)
+    await db.commit()
+    return {"avatar_id": avatar.id, "image": f"/api/v1/avatars/{avatar.id}"}
+
+
+@router.get("/avatars/{ident}")
+async def avatar_image(ident: str, user=Depends(optional_user), db=Depends(db_session)):
+    avatar = await db.get(CharacterAvatar, ident)
+    if not avatar:
+        fail("NOT_FOUND", "Không tìm thấy ảnh đại diện.", 404)
+    if not user or user.id != avatar.owner_id:
+        public = await db.scalar(
+            select(Character.id)
+            .where(
+                Character.data["avatar_id"].as_string() == ident,
+                Character.visibility == "public",
+                Character.status == "approved",
+            )
+            .limit(1)
+        )
+        if not public:
+            fail("NOT_FOUND", "Không tìm thấy ảnh đại diện.", 404)
+    return Response(avatar.content, media_type="image/webp")
 
 
 @router.get("/characters")
@@ -101,6 +135,7 @@ async def create_character(body: CharacterInput, user=Depends(require_feature_us
     count = await db.scalar(select(func.count()).select_from(Character).where(Character.owner_id == user.id))
     if count >= plan.quota["characters"]:
         fail("QUOTA_REACHED", "Bạn đã đạt giới hạn tạo nhân vật hiện tại.", 429)
+    await require_owned_avatar(db, body.avatar_id, user)
     voice = await db.get(Voice, body.voice_id)
     if not voice or not voice.enabled:
         fail("INVALID_VOICE", "Giọng đọc không khả dụng.")
@@ -126,10 +161,15 @@ async def edit_character(
     c = await accessible_character(db, ident, user)
     if c.owner_id != user.id:
         fail("FORBIDDEN", "Bạn không có quyền sửa nhân vật này.", 403)
+    avatar_id = body.avatar_id if "avatar_id" in body.model_fields_set else c.data.get("avatar_id")
+    await require_owned_avatar(db, avatar_id, user)
     voice = await db.get(Voice, body.voice_id)
     if not voice or not voice.enabled:
         fail("INVALID_VOICE", "Giọng đọc không khả dụng.")
-    c.data = {**body.model_dump(exclude={"visibility", "voice_id"}), "creator": user.username}
+    data = body.model_dump(exclude={"visibility", "voice_id"})
+    if "scenario" not in body.model_fields_set:
+        data["scenario"] = c.data.get("scenario", "")
+    c.data = {**data, "avatar_id": avatar_id, "creator": user.username}
     c.visibility, c.voice_id = body.visibility, body.voice_id
     c.status = "pending" if body.visibility == "public" else "approved"
     c.updated_at = now_ms()

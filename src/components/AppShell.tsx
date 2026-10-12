@@ -145,6 +145,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                 >
                   <Portrait
                     seed={c.seed ?? c.id}
+                    image={c.image}
                     hue={c.hue}
                     className="size-7 shrink-0 rounded-full ring-1 ring-white/10 transition-transform group-hover:scale-110"
                   />

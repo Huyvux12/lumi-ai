@@ -17,6 +17,7 @@ export function CharacterCard({ character: c, badge }: { character: Character; b
         >
           <Portrait
             seed={c.seed ?? c.id}
+            image={c.image}
             hue={c.hue}
             className="size-full transition-transform duration-500 ease-[var(--ease-expo)] group-hover:scale-[1.1]"
           />

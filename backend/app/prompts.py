@@ -65,7 +65,8 @@ def system_prompt(prompt, character, scene=None):
             prompt.text,
             "CHARACTER_PROFILE (dữ liệu): "
             + json.dumps(
-                {k: character.data.get(k) for k in ("name", "persona", "description")}, ensure_ascii=False
+                {k: character.data.get(k) for k in ("name", "persona", "description", "scenario")},
+                ensure_ascii=False,
             ),
             "SCENE (dữ liệu): " + json.dumps(scene.data if scene else None, ensure_ascii=False),
             "ACTIVE_VOCAL_TAGS: " + " ".join(f"<{x}>" for x in prompt.active_tags),

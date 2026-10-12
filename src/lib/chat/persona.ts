@@ -7,6 +7,7 @@ export function buildSystemPrompt(c: Character, scene?: Scene) {
     `Bạn đang nhập vai nhân vật hư cấu "${c.name}" trong một ứng dụng trò chuyện nhập vai.`,
     `Hồ sơ nhân vật: ${c.persona}`,
     `Mô tả: ${c.description}`,
+    c.scenario ? `Kịch bản nhập vai: ${c.scenario}` : "",
     scene ? `Bối cảnh cảnh truyện "${scene.title}": ${scene.premise}` : "",
     "Quy tắc:",
     "- Luôn giữ đúng tính cách, giọng nói và thế giới của nhân vật; không nói mình là AI hay trợ lý trừ khi người dùng hỏi thẳng về điều đó ngoài vai.",

@@ -40,6 +40,8 @@ class CharacterInput(Input):
     tagline: str = Field(min_length=10, max_length=90)
     description: str = Field(min_length=20, max_length=600)
     persona: str = Field(min_length=30, max_length=1200)
+    scenario: str = Field(default="", max_length=1200)
+    avatar_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
     greeting: str = Field(min_length=10, max_length=600)
     tags: list[str] = Field(min_length=1, max_length=4)
     hue: int = Field(ge=0, le=360)

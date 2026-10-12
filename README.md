@@ -108,6 +108,21 @@ Tokenizer Qwen được đóng gói từ [nguồn chính thức](https://hugging
 
 ## Database và triển khai
 
+Nhân vật do người dùng tạo hỗ trợ ảnh đại diện tải lên từ bước **Danh tính** và
+trường **Scenario · Bối cảnh nhập vai** ở bước **Tính cách**. Scenario không bắt
+buộc, tối đa 1.200 ký tự, được lưu cùng hồ sơ và đưa vào system prompt cho cả chat
+thật lẫn thử nghiệm bản nháp; persona, mô tả, lời chào và hành động `*...*` vẫn giữ.
+
+Ảnh hỗ trợ PNG/JPEG/WebP tĩnh tối đa 5 MB và 16 megapixel. Server kiểm tra ảnh thật,
+xoay theo EXIF, thu nhỏ tối đa 1.024 px, bỏ metadata và lưu WebP tối đa 1 MB trong
+database. Ảnh bản nháp/riêng tư chỉ chủ tài khoản xem được; ảnh gắn vào nhân vật
+công khai chỉ công khai sau khi nhân vật được duyệt. Ảnh dùng cùng trên create/edit,
+trang nhân vật, danh sách và chat. Chọn **Dùng chân dung tạo tự động** để gỡ ảnh khỏi
+nhân vật và dùng lại SVG; ảnh tải lên không cần bucket hoặc AWS secret mới.
+Migration `82c7f03d9a16` tạo bảng `character_avatars`; cần nâng cấp database trước
+khi chạy bản này. Avatar được backup cùng database; ảnh đã tải lên nhưng chưa gắn
+vào nhân vật vẫn riêng tư và có thể được dùng lại bởi tài khoản tải lên.
+
 Gói sử dụng thuộc tài khoản đã đăng ký. Free được cấp khi đăng ký Free; tài khoản
 đăng ký Premium chỉ mở chat/tạo nhân vật/preview/STT/TTS sau khi thanh toán được xác
 nhận (hoặc đổi mã giảm 100%). Gói Premium đã hết hạn của tài khoản đăng ký Premium

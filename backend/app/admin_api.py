@@ -468,6 +468,8 @@ async def edit_scene(ident: str, body: SceneInput, user=Depends(require_admin), 
 
 class OfficialInput(CharacterInput):
     reason: str = Field(min_length=3, max_length=500)
+    # Avatar attachments are provided by the account-owned character editor only.
+    avatar_id: None = None
 
 
 @router.patch("/catalog/{ident}")
@@ -479,7 +481,7 @@ async def edit_official(ident: str, body: OfficialInput, user=Depends(require_ad
     if not v or not v.enabled:
         fail("INVALID_VOICE", "Giọng đọc không khả dụng.")
     before = c.data
-    c.data = {**c.data, **body.model_dump(exclude={"visibility", "voice_id", "reason"})}
+    c.data = {**c.data, **body.model_dump(exclude={"visibility", "voice_id", "reason"}, exclude_unset=True)}
     c.voice_id = body.voice_id
     c.updated_at = now_ms()
     audit(db, user, "catalog.update", ident, {"reason": body.reason, "before": before, "after": c.data})

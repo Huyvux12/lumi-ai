@@ -8,12 +8,14 @@ export type Character = {
   tagline: string;
   description: string;
   persona: string;
+  scenario?: string;
+  avatar_id?: string | null;
   greeting: string;
   tags: string[];
   chats: number;
   hue: number;
   lore?: boolean;
-  /** Artwork under /public; characters without one get a generated SVG portrait. */
+  /** Built-in artwork or a same-origin uploaded avatar; otherwise use generated SVG art. */
   image?: string;
   /** Portrait seed; defaults to id. User-created characters can reroll it. */
   seed?: string;

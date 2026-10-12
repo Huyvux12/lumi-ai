@@ -375,6 +375,7 @@ function Profile({ user }: { user: User }) {
                       >
                         <Portrait
                           seed={c.seed ?? c.id}
+                          image={c.image}
                           hue={c.hue}
                           className="size-full"
                         />
@@ -463,7 +464,7 @@ function MyCharCard({
             className="size-16 shrink-0 overflow-hidden rounded-2xl"
             style={{ boxShadow: `0 8px 24px -6px hsl(${c.hue} 90% 55% / 0.6)` }}
           >
-            <Portrait seed={c.seed ?? c.id} hue={c.hue} className="size-full" />
+            <Portrait seed={c.seed ?? c.id} image={c.image} hue={c.hue} className="size-full" />
           </div>
           <div className="min-w-0">
             <h3 className="truncate font-semibold">{c.name}</h3>

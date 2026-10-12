@@ -62,6 +62,7 @@ export function StarPicker({ characters }: { characters: Character[] }) {
               >
                 <Portrait
                   seed={c.seed ?? c.id}
+                  image={c.image}
                   hue={c.hue}
                   className="absolute inset-0 size-full transition-transform duration-700 ease-[var(--ease-expo)] group-hover:scale-[1.08]"
                 />

@@ -19,6 +19,7 @@ import {
   Sparkles,
   Tags,
   UserRound,
+  Upload,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import {
   newCharId,
   randomSeed,
   saveUserChar,
+  uploadCharacterAvatar,
   type UserCharacter,
 } from "@/lib/userCharacters";
 
@@ -50,12 +52,21 @@ type Draft = {
   tagline: string;
   description: string;
   persona: string;
+  scenario: string;
+  avatar_id: string | null;
+  image?: string;
   greeting: string;
   tags: string[];
   hue: number;
   seed: string;
 };
-type TextKey = "name" | "tagline" | "description" | "persona" | "greeting";
+type TextKey =
+  | "name"
+  | "tagline"
+  | "description"
+  | "persona"
+  | "scenario"
+  | "greeting";
 
 const STEPS = [
   { label: "Danh tính", icon: UserRound },
@@ -68,6 +79,7 @@ const STEP_OF: Record<string, number> = {
   tagline: 0,
   description: 1,
   persona: 1,
+  scenario: 1,
   greeting: 2,
   tags: 3,
 };
@@ -91,6 +103,7 @@ const LABEL: Record<TextKey | "tags", string> = {
   tagline: "Câu giới thiệu",
   description: "Mô tả",
   persona: "Tính cách",
+  scenario: "Scenario · Bối cảnh nhập vai (không bắt buộc)",
   greeting: "Lời chào",
   tags: "Thể loại",
 };
@@ -101,6 +114,8 @@ function blank(): Draft {
     tagline: "",
     description: "",
     persona: "",
+    scenario: "",
+    avatar_id: null,
     greeting: "",
     tags: [],
     hue: [220, 265, 300, 340, 20, 160][Math.floor(Math.random() * 6)],
@@ -110,14 +125,21 @@ function blank(): Draft {
 
 function validate(d: Draft) {
   const e: Partial<Record<TextKey | "tags", string>> = {};
-  (["name", "tagline", "description", "persona", "greeting"] as const).forEach(
-    (k) => {
-      const n = d[k].trim().length;
-      const [min, max] = LIMITS[k];
-      if (n < min) e[k] = `${LABEL[k]} cần ít nhất ${min} ký tự (hiện ${n}).`;
-      else if (n > max) e[k] = `${LABEL[k]} tối đa ${max} ký tự.`;
-    },
-  );
+  (
+    [
+      "name",
+      "tagline",
+      "description",
+      "persona",
+      "scenario",
+      "greeting",
+    ] as const
+  ).forEach((k) => {
+    const n = d[k].trim().length;
+    const [min, max] = LIMITS[k];
+    if (n < min) e[k] = `${LABEL[k]} cần ít nhất ${min} ký tự (hiện ${n}).`;
+    else if (n > max) e[k] = `${LABEL[k]} tối đa ${max} ký tự.`;
+  });
   if (d.tags.length < LIMITS.tags[0]) e.tags = "Chọn ít nhất 1 thể loại.";
   if (d.tags.length > LIMITS.tags[1])
     e.tags = `Tối đa ${LIMITS.tags[1]} thể loại.`;
@@ -132,6 +154,9 @@ function asCharacter(d: Draft, id: string, creator: string): Character {
     tagline: d.tagline.trim(),
     description: d.description.trim(),
     persona: d.persona.trim(),
+    scenario: d.scenario.trim(),
+    avatar_id: d.avatar_id,
+    image: d.image,
     greeting: d.greeting.trim(),
     tags: d.tags,
     chats: 0,
@@ -204,6 +229,9 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
           tagline: existing.tagline,
           description: existing.description,
           persona: existing.persona,
+          scenario: existing.scenario ?? "",
+          avatar_id: existing.avatar_id ?? null,
+          image: existing.image,
           greeting: existing.greeting,
           tags: existing.tags,
           hue: existing.hue,
@@ -221,6 +249,10 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
   const [tryOpen, setTryOpen] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const saveLock = useRef(false);
   const [visibility, setVisibility] = useState<"private" | "public">(
     existing?.visibility ?? "private",
   );
@@ -228,6 +260,29 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
 
   const previewId = existing?.id ?? "u-preview";
   const preview = asCharacter(draft, previewId, user.username);
+
+  async function attachImage(file?: File) {
+    if (!file || uploading || saving) return;
+    setImageError("");
+    if (
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
+      file.size > 5 * 1024 * 1024
+    ) {
+      setImageError("Chọn ảnh PNG, JPEG hoặc WebP tĩnh tối đa 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const avatar = await uploadCharacterAvatar(file);
+      setDraft((current) => ({ ...current, ...avatar }));
+    } catch (error) {
+      setImageError(
+        error instanceof Error ? error.message : "Không thể tải ảnh lên.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
 
   // Autosave new drafts so a refresh never loses work.
   useEffect(() => {
@@ -259,6 +314,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
   };
 
   const save = async () => {
+    if (uploading || saveLock.current || born) return;
     const e = validate(draft);
     if (Object.keys(e).length) {
       setErrors(e);
@@ -276,11 +332,17 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
       updatedAt: now,
     };
     let saved: UserCharacter;
+    saveLock.current = true;
+    setSaving(true);
+    setSaveError("");
     try {
       saved = await saveUserChar({ ...c, visibility, voice_id: voiceId });
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Không thể lưu.");
       return;
+    } finally {
+      saveLock.current = false;
+      setSaving(false);
     }
     if (!existing) {
       removeKey(DRAFT);
@@ -321,6 +383,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
               setErrors({});
               go(0);
             }}
+            disabled={uploading || saving}
             className="rounded-full px-3 py-1.5 text-sm text-fg-3 transition-colors hover:bg-white/5 hover:text-fg"
           >
             Làm lại từ đầu
@@ -448,7 +511,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                       <div className="relative mx-auto size-28 overflow-hidden rounded-2xl ring-1 ring-white/10 sm:mx-0">
                         <AnimatePresence mode="popLayout" initial={false}>
                           <motion.div
-                            key={draft.seed + draft.hue}
+                            key={(draft.image ?? draft.seed) + draft.hue}
                             initial={{ rotateY: 90, opacity: 0 }}
                             animate={{ rotateY: 0, opacity: 1 }}
                             exit={{ rotateY: -90, opacity: 0 }}
@@ -458,12 +521,59 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                             <Portrait
                               seed={draft.seed}
                               hue={draft.hue}
+                              image={draft.image}
                               className="size-full"
                             />
                           </motion.div>
                         </AnimatePresence>
                       </div>
                       <div className="flex flex-col gap-3">
+                        <label className="flex flex-col gap-2 text-sm font-medium text-fg-2">
+                          <span className="flex items-center gap-2">
+                            <Upload className="size-4" aria-hidden="true" />
+                            Ảnh đại diện
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            disabled={uploading || saving}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              void attachImage(file);
+                            }}
+                            className="field text-sm"
+                          />
+                        </label>
+                        <p className="text-xs text-fg-3">
+                          PNG, JPEG hoặc WebP tĩnh · tối đa 5 MB / 16 megapixel.
+                        </p>
+                        {uploading && (
+                          <p role="status" className="text-sm text-accent">
+                            Đang tải ảnh lên…
+                          </p>
+                        )}
+                        {imageError && (
+                          <p role="alert" className="text-sm text-danger">
+                            {imageError}
+                          </p>
+                        )}
+                        {draft.image && (
+                          <button
+                            type="button"
+                            disabled={uploading || saving}
+                            onClick={() =>
+                              setDraft((current) => ({
+                                ...current,
+                                avatar_id: null,
+                                image: undefined,
+                              }))
+                            }
+                            className="w-fit text-sm text-accent"
+                          >
+                            Dùng chân dung tạo tự động
+                          </button>
+                        )}
                         <label className="flex flex-col gap-2">
                           <span className="text-sm font-medium text-fg-2">
                             Sắc màu linh hồn
@@ -486,6 +596,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.95, rotate: -8 }}
                           onClick={() => set("seed", randomSeed())}
+                          disabled={!!draft.image || uploading || saving}
                           className="flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
                         >
                           <Dice5
@@ -558,6 +669,15 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                       error={errorFor("persona")}
                       onChange={(v) => set("persona", v)}
                       placeholder="Cách nói chuyện, điều nhân vật yêu/ghét, giới hạn… (AI sẽ nhập vai theo đoạn này)"
+                    />
+                    <Field
+                      k="scenario"
+                      multiline
+                      rows={4}
+                      value={draft.scenario}
+                      error={errorFor("scenario")}
+                      onChange={(value) => set("scenario", value)}
+                      placeholder="VD: Hai người trú mưa trong thư viện cổ. Nhân vật đang tìm một cuốn sách thất lạc…"
                     />
                   </>
                 )}
@@ -720,6 +840,7 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={save}
+                  disabled={uploading || saving || !!born}
                   className="btn-glow ml-auto flex items-center gap-2 rounded-2xl px-6 py-3 font-semibold"
                 >
                   <Sparkles className="size-4" aria-hidden="true" />{" "}
@@ -858,7 +979,11 @@ function Checklist({
   const e = validate(draft);
   const items: [string, number, boolean][] = [
     ["Tên & câu giới thiệu", 0, !e.name && !e.tagline],
-    ["Mô tả & tính cách", 1, !e.description && !e.persona],
+    [
+      "Mô tả, tính cách & bối cảnh",
+      1,
+      !e.description && !e.persona && !e.scenario,
+    ],
     ["Lời chào mở đầu", 2, !e.greeting],
     ["Thể loại", 3, !e.tags],
   ];
@@ -911,7 +1036,12 @@ function PreviewCard({ c }: { c: Character }) {
               boxShadow: `0 12px 40px -8px hsl(${c.hue} 90% 55% / 0.6)`,
             }}
           >
-            <Portrait seed={c.seed ?? c.id} hue={c.hue} className="size-full" />
+            <Portrait
+              seed={c.seed ?? c.id}
+              image={c.image}
+              hue={c.hue}
+              className="size-full"
+            />
           </motion.div>
           <div className="min-w-0 flex-1">
             <h2
@@ -1133,6 +1263,7 @@ function BirthOverlay({ c, edited }: { c: Character; edited: boolean }) {
           >
             <Portrait
               seed={c.seed ?? c.id}
+              image={c.image}
               hue={c.hue}
               className="aspect-square w-full rounded-2xl"
             />

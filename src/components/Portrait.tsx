@@ -11,12 +11,13 @@ function hash(s: string) {
 type Props = {
   seed: string;
   hue: number;
+  image?: string;
   className?: string;
   variant?: "portrait" | "scene";
 };
 
-export function Portrait({ seed, hue, className, variant = "portrait" }: Props) {
-  const src = variant === "portrait" ? imageFor(seed) : undefined;
+export function Portrait({ seed, hue, image, className, variant = "portrait" }: Props) {
+  const src = variant === "portrait" ? image || imageFor(seed) : undefined;
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- also rendered inside tiny avatars and 3D texture sources
