@@ -2,8 +2,8 @@ set -eu
 cd /opt/lumi
 test -f .env
 test -f .env.backend
-git fetch origin main
-git checkout -f -B main origin/main
+git fetch --depth 1 origin +main:refs/remotes/origin/main
+git checkout -f -B main refs/remotes/origin/main
 test -f .env
 test -f .env.backend
 sudo docker compose up -d --build
