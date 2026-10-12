@@ -157,4 +157,6 @@ class VoiceInput(Reason):
     name: str = Field(min_length=2, max_length=80)
     voice: str = Field(min_length=2, max_length=40)
     style: str = Field(max_length=300)
+    description_vi: str = Field(default="", max_length=300)
+    description_en: str = Field(default="", max_length=300)
     enabled: bool

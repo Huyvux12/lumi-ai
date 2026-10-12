@@ -36,6 +36,11 @@ test("avatar and scenario persist across create, edit, profile and chat", async 
   });
   expect(registered.ok()).toBeTruthy();
   await page.goto("/create");
+  const voiceSelect = page.getByLabel("Giọng đọc", { exact: false });
+  await expect(voiceSelect.locator("option")).toHaveCount(33);
+  await voiceSelect.selectOption("gemini-sulafat");
+  await expect(page.getByTestId("voice-description")).toContainText("Giọng ấm áp");
+  await expect(page.getByTestId("voice-description")).toContainText("A warm voice");
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/avatar.png");
   await expect(page.locator('img[src^="/api/v1/avatars/"]').first()).toBeVisible();
   await page.locator("#f-name").fill(profile.name);
@@ -53,6 +58,8 @@ test("avatar and scenario persist across create, edit, profile and chat", async 
   const id = new URL(page.url()).pathname.split("/").at(-1)!;
   await expect(page.locator('img[src^="/api/v1/avatars/"]').first()).toBeVisible();
   await page.goto(`/create?edit=${id}`);
+  await expect(page.getByLabel("Giọng đọc", { exact: false })).toHaveValue("gemini-sulafat");
+  await page.getByLabel("Giọng đọc", { exact: false }).selectOption("gemini-achird");
   await page.getByRole("button", { name: "Tiếp theo" }).click();
   await expect(page.locator("#f-scenario")).toHaveValue(profile.scenario);
   await page.locator("#f-scenario").fill("A calm morning in a floating observatory.");
@@ -64,6 +71,12 @@ test("avatar and scenario persist across create, edit, profile and chat", async 
   expect((await saved.json()).scenario).toBe("A calm morning in a floating observatory.");
   await page.goto(`/chat/${id}`);
   await expect(page.locator('img[src^="/api/v1/avatars/"]').first()).toBeVisible();
+  await expect(page.getByTestId("voice-description")).toContainText("A friendly voice");
+  const chatVoice = page.getByLabel("Giọng đọc", { exact: true });
+  await expect(chatVoice.locator("option")).toHaveCount(34);
+  await chatVoice.selectOption("gemini-zephyr");
+  await expect(page.getByTestId("voice-description")).toContainText("Giọng tươi sáng");
+  await expect(page.getByTestId("voice-description")).toContainText("A bright voice");
 });
 
 test("moderation UI previews a pending public image and scenario", async ({ page }) => {
@@ -103,4 +116,27 @@ test("an expired order still detects a late paid confirmation", async ({ page })
   await page.goto("/billing");
   await expect(page.getByText("QR hết hạn", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Đã thanh toán", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+});
+
+test("admin can edit bilingual descriptions with an empty native style and retain every voice option", async ({ page }) => {
+  expect((await page.request.post("/api/v1/auth/login", {
+    headers: { "X-Lumi-Request": "1" }, data: { email: "owner@example.com", password: "BrowserTest123!" },
+  })).ok()).toBeTruthy();
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Giọng đọc", exact: true }).click();
+  const card = page.locator("section").filter({ has: page.getByRole("heading", { name: /^Zephyr/ }) });
+  await expect(card.getByText("A bright voice", { exact: false })).toBeVisible();
+  await card.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await expect(page.getByLabel("voice", { exact: true }).locator("option")).toHaveCount(30);
+  await page.getByLabel("voice", { exact: true }).selectOption("Sulafat");
+  await expect(page.getByLabel("style", { exact: true })).toHaveValue("");
+  await page.getByLabel("Mô tả giọng (tiếng Việt)", { exact: true }).fill("Giọng ấm áp tùy chỉnh.");
+  await page.getByLabel("Voice description (English)", { exact: true }).fill("A custom warm voice.");
+  await page.getByLabel("Lý do (bắt buộc)", { exact: true }).fill("Verify native voice editing");
+  await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await expect(card.getByText("A custom warm voice.", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Chỉnh sửa" }).click();
+  const select = page.getByLabel("voice", { exact: true });
+  await expect(select.locator("option")).toHaveCount(30);
+  await expect(select.locator("option").filter({ hasText: /^Zephyr$/ })).toHaveCount(1);
 });

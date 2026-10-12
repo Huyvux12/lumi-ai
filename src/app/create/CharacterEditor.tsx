@@ -1,6 +1,9 @@
 "use client";
 
 import { PlanGate } from "@/components/PlanGate";
+import { VoiceDescription } from "@/components/VoiceDescription";
+import { api } from "@/lib/api";
+import type { Voice } from "@/lib/chat/speech";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -270,6 +273,15 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
     existing?.visibility ?? "private",
   );
   const [voiceId, setVoiceId] = useState(existing?.voice_id ?? "kore-warm");
+  const [voices, setVoices] = useState<Voice[] | null>(null);
+  const [voiceError, setVoiceError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<Voice[]>("/voices")
+      .then((rows) => { if (live) setVoices(rows); })
+      .catch(() => { if (live) setVoiceError("Không tải được danh sách giọng. Vui lòng tải lại trang."); });
+    return () => { live = false; };
+  }, []);
 
   const previewId = existing?.id ?? "u-preview";
   const preview = asCharacter(draft, previewId, user.username);
@@ -426,12 +438,18 @@ function Editor({ user, existing }: { user: User; existing?: UserCharacter }) {
             className="ml-2 rounded-lg bg-surface p-2"
             value={voiceId}
             onChange={(e) => setVoiceId(e.target.value)}
+            disabled={voices === null}
           >
-            <option value="kore-warm">Kore · ấm áp</option>
-            <option value="puck-playful">Puck · vui tươi</option>
-            <option value="kore-moe">Kore · mềm mại</option>
+            {!voices?.some((v) => v.id === voiceId) && (
+              <option value={voiceId} disabled>
+                {voices === null ? "Đang tải giọng…" : "Giọng hiện tại không khả dụng — chọn giọng khác"}
+              </option>
+            )}
+            {voices?.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </label>
+        <VoiceDescription voice={voices?.find((v) => v.id === voiceId)} />
+        {voiceError && <p role="alert" className="w-full text-danger">{voiceError}</p>}
         {saveError && (
           <p role="alert" className="w-full text-danger">
             {saveError}

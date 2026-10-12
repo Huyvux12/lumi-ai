@@ -10,6 +10,7 @@ export type Character = {
   persona: string;
   scenario?: string;
   avatar_id?: string | null;
+  voice_id?: string;
   greeting: string;
   tags: string[];
   chats: number;

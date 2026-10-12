@@ -24,6 +24,7 @@ from .models import (
 from .prompts import ALL_TAGS
 from .quotas import admin_usage
 from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
+from .voice_catalog import OFFICIAL_VOICES, voice_view
 from .security import db_session, fail, require_admin, require_owner, require_staff
 from pydantic import Field
 
@@ -324,9 +325,15 @@ async def publish(ident: str, body: Reason, user=Depends(require_admin), db=Depe
 @router.get("/voices")
 async def voices(user=Depends(require_admin), db=Depends(db_session)):
     return [
-        {"id": v.id, "name": v.name, "voice": v.voice, "style": v.style, "enabled": v.enabled}
-        for v in (await db.execute(select(Voice))).scalars()
+        {**voice_view(v), "voice": v.voice, "style": v.style, "enabled": v.enabled}
+        for v in (await db.execute(select(Voice).order_by(Voice.name, Voice.id))).scalars()
     ]
+
+
+@router.get("/voices/options")
+async def voice_options(user=Depends(require_admin)):
+    # Remapping a preset must not remove its original provider voice from the picker.
+    return sorted(OFFICIAL_VOICES)
 
 
 @router.patch("/voices/{ident}")
@@ -334,11 +341,10 @@ async def edit_voice(ident: str, body: VoiceInput, user=Depends(require_admin), 
     row = await db.get(Voice, ident)
     if not row:
         fail("NOT_FOUND", "Không tìm thấy preset.", 404)
-    # Presets currently tested in the handoff; custom designed/replicated IDs are excluded.
-    if body.voice not in {"Kore", "Puck"}:
-        fail("INVALID_VOICE", "Bản đầu chỉ bật các giọng đã được kiểm tra Kore/Puck.")
-    before = {"name": row.name, "style": row.style, "voice": row.voice, "enabled": row.enabled}
-    for key, value in body.model_dump(exclude={"reason"}).items():
+    if body.voice not in OFFICIAL_VOICES:
+        fail("INVALID_VOICE", "Chọn một trong 30 giọng Gemini chính thức.")
+    before = {**voice_view(row), "style": row.style, "voice": row.voice, "enabled": row.enabled}
+    for key, value in body.model_dump(exclude={"reason"}, exclude_unset=True).items():
         setattr(row, key, value)
     audit(db, user, "voice.update", ident, {"before": before, "after": body.model_dump()})
     await db.commit()

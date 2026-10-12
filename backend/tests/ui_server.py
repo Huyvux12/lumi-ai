@@ -35,8 +35,10 @@ original_lifespan = app.router.lifespan_context
 async def lifespan(app):
     async with original_lifespan(app):
         async with app.state.db() as db:
-            db.add(User(email="moderator@example.com", username="review_moderator", name="Review Moderator",
-                        password_hash=passwords.hash("BrowserTest123!"), role="moderator"))
+            hashed = passwords.hash("BrowserTest123!")
+            for role in ("moderator", "owner"):
+                db.add(User(email=f"{role}@example.com", username=f"review_{role}", name=f"Review {role.title()}",
+                            password_hash=hashed, role=role))
             await db.commit()
         yield
 

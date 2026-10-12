@@ -1,0 +1,266 @@
+[
+  {
+    "id": "gemini-zephyr",
+    "name": "Zephyr · Tươi sáng / Bright",
+    "voice": "Zephyr",
+    "style": "",
+    "description_vi": "Giọng tươi sáng, nhẹ nhàng và rạng rỡ.",
+    "description_en": "A bright voice with a light, radiant tone."
+  },
+  {
+    "id": "gemini-puck",
+    "name": "Puck · Vui tươi / Upbeat",
+    "voice": "Puck",
+    "style": "",
+    "description_vi": "Giọng vui tươi, lạc quan và đầy năng lượng.",
+    "description_en": "An upbeat voice with an optimistic, energetic tone."
+  },
+  {
+    "id": "gemini-charon",
+    "name": "Charon · Truyền đạt rõ ràng / Informative",
+    "voice": "Charon",
+    "style": "",
+    "description_vi": "Giọng truyền đạt thông tin rõ ràng, phù hợp kể và giải thích.",
+    "description_en": "An informative voice suited to narration and explanations."
+  },
+  {
+    "id": "gemini-kore",
+    "name": "Kore · Dứt khoát / Firm",
+    "voice": "Kore",
+    "style": "",
+    "description_vi": "Giọng dứt khoát, vững vàng và tự tin.",
+    "description_en": "A firm voice with a steady, confident delivery."
+  },
+  {
+    "id": "gemini-fenrir",
+    "name": "Fenrir · Hào hứng / Excitable",
+    "voice": "Fenrir",
+    "style": "",
+    "description_vi": "Giọng hào hứng, dễ bộc lộ sự phấn khích.",
+    "description_en": "An excitable voice that readily conveys enthusiasm."
+  },
+  {
+    "id": "gemini-leda",
+    "name": "Leda · Trẻ trung / Youthful",
+    "voice": "Leda",
+    "style": "",
+    "description_vi": "Giọng trẻ trung, tươi mới và tự nhiên.",
+    "description_en": "A youthful voice with a fresh, natural tone."
+  },
+  {
+    "id": "gemini-orus",
+    "name": "Orus · Vững vàng / Firm",
+    "voice": "Orus",
+    "style": "",
+    "description_vi": "Giọng vững vàng, chắc chắn và kiên định.",
+    "description_en": "A firm voice with a solid, resolute delivery."
+  },
+  {
+    "id": "gemini-aoede",
+    "name": "Aoede · Nhẹ nhàng thoải mái / Breezy",
+    "voice": "Aoede",
+    "style": "",
+    "description_vi": "Giọng nhẹ nhàng, thoải mái như một cuộc trò chuyện thư thái.",
+    "description_en": "A breezy voice with a light, relaxed conversational tone."
+  },
+  {
+    "id": "gemini-callirrhoe",
+    "name": "Callirrhoe · Thư thái / Easy-going",
+    "voice": "Callirrhoe",
+    "style": "",
+    "description_vi": "Giọng thư thái, dễ gần và không gượng ép.",
+    "description_en": "An easy-going voice with a relaxed, approachable delivery."
+  },
+  {
+    "id": "gemini-autonoe",
+    "name": "Autonoe · Rạng rỡ / Bright",
+    "voice": "Autonoe",
+    "style": "",
+    "description_vi": "Giọng rạng rỡ, sáng rõ và tràn sức sống.",
+    "description_en": "A bright voice with a radiant, vibrant tone."
+  },
+  {
+    "id": "gemini-enceladus",
+    "name": "Enceladus · Thoảng hơi / Breathy",
+    "voice": "Enceladus",
+    "style": "",
+    "description_vi": "Giọng thoảng hơi, mềm và gần gũi.",
+    "description_en": "A breathy voice with a soft, intimate texture."
+  },
+  {
+    "id": "gemini-iapetus",
+    "name": "Iapetus · Rõ nét / Clear",
+    "voice": "Iapetus",
+    "style": "",
+    "description_vi": "Giọng rõ nét, phát âm rành mạch và dễ nghe.",
+    "description_en": "A clear voice with articulate, easy-to-follow delivery."
+  },
+  {
+    "id": "gemini-umbriel",
+    "name": "Umbriel · Dễ gần / Easy-going",
+    "voice": "Umbriel",
+    "style": "",
+    "description_vi": "Giọng dễ gần, thong thả và thoải mái.",
+    "description_en": "An easy-going voice with an unhurried, relaxed tone."
+  },
+  {
+    "id": "gemini-algieba",
+    "name": "Algieba · Mượt mà / Smooth",
+    "voice": "Algieba",
+    "style": "",
+    "description_vi": "Giọng mượt mà, trôi chảy và êm tai.",
+    "description_en": "A smooth voice with a fluid, pleasant delivery."
+  },
+  {
+    "id": "gemini-despina",
+    "name": "Despina · Êm mượt / Smooth",
+    "voice": "Despina",
+    "style": "",
+    "description_vi": "Giọng êm mượt, liền mạch và dễ chịu.",
+    "description_en": "A smooth voice with a seamless, comfortable tone."
+  },
+  {
+    "id": "gemini-erinome",
+    "name": "Erinome · Trong rõ / Clear",
+    "voice": "Erinome",
+    "style": "",
+    "description_vi": "Giọng trong rõ, câu chữ dễ phân biệt và dễ hiểu.",
+    "description_en": "A clear voice with distinct, intelligible phrasing."
+  },
+  {
+    "id": "gemini-algenib",
+    "name": "Algenib · Khàn sạn / Gravelly",
+    "voice": "Algenib",
+    "style": "",
+    "description_vi": "Giọng khàn sạn, có chất thô ráp đặc trưng.",
+    "description_en": "A gravelly voice with a distinctive rough texture."
+  },
+  {
+    "id": "gemini-rasalgethi",
+    "name": "Rasalgethi · Giàu thông tin / Informative",
+    "voice": "Rasalgethi",
+    "style": "",
+    "description_vi": "Giọng giàu thông tin, mạch lạc khi dẫn chuyện hoặc giải thích.",
+    "description_en": "An informative voice with coherent narration and explanations."
+  },
+  {
+    "id": "gemini-laomedeia",
+    "name": "Laomedeia · Hứng khởi / Upbeat",
+    "voice": "Laomedeia",
+    "style": "",
+    "description_vi": "Giọng hứng khởi, tích cực và vui vẻ.",
+    "description_en": "An upbeat voice with a positive, cheerful tone."
+  },
+  {
+    "id": "gemini-achernar",
+    "name": "Achernar · Mềm nhẹ / Soft",
+    "voice": "Achernar",
+    "style": "",
+    "description_vi": "Giọng mềm nhẹ, dịu và không gay gắt.",
+    "description_en": "A soft voice with a quiet, delicate tone."
+  },
+  {
+    "id": "gemini-alnilam",
+    "name": "Alnilam · Chắc chắn / Firm",
+    "voice": "Alnilam",
+    "style": "",
+    "description_vi": "Giọng chắc chắn, có sức nặng và tự tin.",
+    "description_en": "A firm voice with a confident, assured delivery."
+  },
+  {
+    "id": "gemini-schedar",
+    "name": "Schedar · Đều đặn / Even",
+    "voice": "Schedar",
+    "style": "",
+    "description_vi": "Giọng đều đặn, cân bằng và ổn định.",
+    "description_en": "An even voice with a balanced, consistent delivery."
+  },
+  {
+    "id": "gemini-gacrux",
+    "name": "Gacrux · Chín chắn / Mature",
+    "voice": "Gacrux",
+    "style": "",
+    "description_vi": "Giọng chín chắn, điềm tĩnh và từng trải.",
+    "description_en": "A mature voice with a composed, seasoned tone."
+  },
+  {
+    "id": "gemini-pulcherrima",
+    "name": "Pulcherrima · Thẳng thắn / Forward",
+    "voice": "Pulcherrima",
+    "style": "",
+    "description_vi": "Giọng thẳng thắn, trực diện và chủ động.",
+    "description_en": "A forward voice with a direct, assertive delivery."
+  },
+  {
+    "id": "gemini-achird",
+    "name": "Achird · Thân thiện / Friendly",
+    "voice": "Achird",
+    "style": "",
+    "description_vi": "Giọng thân thiện, cởi mở và dễ gần.",
+    "description_en": "A friendly voice with an open, approachable tone."
+  },
+  {
+    "id": "gemini-zubenelgenubi",
+    "name": "Zubenelgenubi · Đời thường / Casual",
+    "voice": "Zubenelgenubi",
+    "style": "",
+    "description_vi": "Giọng đời thường, tự nhiên như trò chuyện cùng bạn bè.",
+    "description_en": "A casual voice with a natural, everyday conversational tone."
+  },
+  {
+    "id": "gemini-vindemiatrix",
+    "name": "Vindemiatrix · Dịu dàng / Gentle",
+    "voice": "Vindemiatrix",
+    "style": "",
+    "description_vi": "Giọng dịu dàng, nhẹ nhàng và chu đáo.",
+    "description_en": "A gentle voice with a tender, considerate delivery."
+  },
+  {
+    "id": "gemini-sadachbia",
+    "name": "Sadachbia · Sinh động / Lively",
+    "voice": "Sadachbia",
+    "style": "",
+    "description_vi": "Giọng sinh động, linh hoạt và tràn sức sống.",
+    "description_en": "A lively voice with animated, vibrant delivery."
+  },
+  {
+    "id": "gemini-sadaltager",
+    "name": "Sadaltager · Thông thái / Knowledgeable",
+    "voice": "Sadaltager",
+    "style": "",
+    "description_vi": "Giọng thông thái, hiểu biết và tự tin khi giải thích.",
+    "description_en": "A knowledgeable voice with an informed, assured tone."
+  },
+  {
+    "id": "gemini-sulafat",
+    "name": "Sulafat · Ấm áp / Warm",
+    "voice": "Sulafat",
+    "style": "",
+    "description_vi": "Giọng ấm áp, gần gũi và dễ tạo cảm giác an tâm.",
+    "description_en": "A warm voice with a comforting, welcoming tone."
+  },
+  {
+    "id": "kore-warm",
+    "name": "Kore · Ấm áp",
+    "voice": "Kore",
+    "style": "warm and friendly Vietnamese",
+    "description_vi": "Kore với phong cách ấm áp, thân thiện khi nói tiếng Việt.",
+    "description_en": "Kore styled for warm, friendly Vietnamese speech."
+  },
+  {
+    "id": "puck-playful",
+    "name": "Puck · Vui vẻ",
+    "voice": "Puck",
+    "style": "playful, cheerful Vietnamese",
+    "description_vi": "Puck với phong cách tinh nghịch, vui vẻ khi nói tiếng Việt.",
+    "description_en": "Puck styled for playful, cheerful Vietnamese speech."
+  },
+  {
+    "id": "kore-moe",
+    "name": "Kore · Moe",
+    "voice": "Kore",
+    "style": "high pitch, soft and sweet, playful, affectionate",
+    "description_vi": "Kore với phong cách moe: cao, mềm mại, ngọt ngào và trìu mến.",
+    "description_en": "Kore styled with a high, soft, sweet, playful and affectionate tone."
+  }
+]

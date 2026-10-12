@@ -1,5 +1,10 @@
 import { api, ApiError, mutation, notifyPlanChange, requestId } from "../api";
-export type Voice = { id: string; name: string };
+export type Voice = {
+  id: string;
+  name: string;
+  description_vi: string;
+  description_en: string;
+};
 export class DialoguePlayer {
   private context: AudioContext | null = null;
   private controller: AbortController | null = null;

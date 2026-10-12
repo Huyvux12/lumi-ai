@@ -147,5 +147,5 @@ def speech_parts(segments, voice):
             style.append("speaking slowly" if segment["pace"] == "slow" else "speaking rapidly")
         if segment.get("delivery") == "whispered":
             style.append("whispered")
-        result.append({"text": segment["tts_text"], "speechMetadata": {"style": ", ".join(style)}})
+        result.append({"text": segment["tts_text"], "speechMetadata": {"style": ", ".join(s for s in style if s)}})
     return result

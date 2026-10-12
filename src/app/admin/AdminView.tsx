@@ -7,6 +7,11 @@ import { SecurityPanel } from "@/components/SecurityPanel";
 import { Portrait } from "@/components/Portrait";
 import type { UserCharacter } from "@/lib/userCharacters";
 import type { Scene } from "@/lib/data";
+const editorLabels: Record<string, string> = {
+  description_vi: "Mô tả giọng (tiếng Việt)",
+  description_en: "Voice description (English)",
+  reason: "Lý do (bắt buộc)",
+};
 type AdminUser = {
   id: string;
   email: string;
@@ -38,6 +43,8 @@ type Voice = {
   name: string;
   voice: string;
   style: string;
+  description_vi: string;
+  description_en: string;
   enabled: boolean;
 };
 type Order = {
@@ -242,6 +249,7 @@ function AdminAccount() {
     user?.role === "moderator" ? "characters" : "summary",
   );
   const [data, setData] = useState<unknown>(null);
+  const [voiceOptions, setVoiceOptions] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(true);
@@ -268,8 +276,12 @@ function AdminAccount() {
   const load = useCallback(async () => {
     const version = ++fetchEpoch.current;
     try {
-      const payload = await api(`/admin/${tab}`);
+      const [payload, options] = await Promise.all([
+        api(`/admin/${tab}`),
+        tab === "voices" ? api<string[]>("/admin/voices/options") : Promise.resolve(null),
+      ]);
       if (version !== fetchEpoch.current) return;
+      if (options) setVoiceOptions(options);
       setData(payload);
       if (tab === "orders") {
         const rows = await api<Payment[]>("/admin/payments");
@@ -805,6 +817,10 @@ function AdminAccount() {
                 <br />
                 {v.style}
               </p>
+              <p className="mb-3 text-sm text-fg-2">
+                <span lang="vi">{v.description_vi}</span><br />
+                <span lang="en">{v.description_en}</span>
+              </p>
               <button
                 className={button}
                 onClick={() =>
@@ -812,6 +828,8 @@ function AdminAccount() {
                     name: v.name,
                     voice: v.voice,
                     style: v.style,
+                    description_vi: v.description_vi,
+                    description_en: v.description_en,
                     enabled: v.enabled,
                   })
                 }
@@ -1051,13 +1069,14 @@ function AdminAccount() {
               const choices: Record<string, string[]> = {
                 role: ["user", "moderator", "admin", "owner"],
                 status: ["approved", "pending", "hidden"],
-                voice: ["Kore", "Puck"],
+                voice: voiceOptions,
               };
               if (choices[key])
                 return (
                   <label key={key} className="block text-sm">
                     {key}
                     <select
+                      aria-label={key}
                       className={field + " mt-1"}
                       value={String(value)}
                       onChange={(e) =>
@@ -1075,7 +1094,7 @@ function AdminAccount() {
                 );
               return (
                 <label key={String(options)} className="block text-sm">
-                  {key === "reason" ? "Lý do (bắt buộc)" : key}
+                  {editorLabels[key] ?? key}
                   {Array.isArray(value) ? (
                     <input
                       className={field + " mt-1"}
@@ -1112,7 +1131,8 @@ function AdminAccount() {
                     />
                   ) : (
                     <textarea
-                      required
+                      aria-label={editorLabels[key] ?? key}
+                      required={!["style", "description_vi", "description_en"].includes(key)}
                       rows={
                         ["persona", "description", "premise"].includes(key)
                           ? 5

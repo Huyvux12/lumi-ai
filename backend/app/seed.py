@@ -4,6 +4,7 @@ from sqlalchemy import select
 from .models import Character, Plan, PlanSettings, Prompt, Scene, Voice
 from .prompts import BASE_PROMPT, DEFAULT_TAGS
 from .quotas import FREE, PREMIUM
+from .voice_catalog import VOICE_PRESETS
 
 
 async def seed(db):
@@ -19,13 +20,10 @@ async def seed(db):
             db.add(PlanSettings(code=code, enabled=True, discount_percent=0, promo_codes=[]))
         if not (await db.execute(select(Plan).where(Plan.code == code).limit(1))).scalar_one_or_none():
             db.add(Plan(code=code, price_vnd=price, quota=quota))
-    for ident, name, voice, style in (
-        ("kore-warm", "Kore · Ấm áp", "Kore", "warm and friendly Vietnamese"),
-        ("puck-playful", "Puck · Vui vẻ", "Puck", "playful, cheerful Vietnamese"),
-        ("kore-moe", "Kore · Moe", "Kore", "high pitch, soft and sweet, playful, affectionate"),
-    ):
-        if not await db.get(Voice, ident):
-            db.add(Voice(id=ident, name=name, voice=voice, style=style))
+    for preset in VOICE_PRESETS:
+        row = await db.get(Voice, preset["id"])
+        if row is None:
+            db.add(Voice(**preset))
     if not (await db.execute(select(Prompt).limit(1))).scalar_one_or_none():
         db.add(Prompt(text=BASE_PROMPT, active_tags=DEFAULT_TAGS, published=True))
     await db.commit()

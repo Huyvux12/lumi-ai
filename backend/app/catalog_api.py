@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import func, or_, select
 from .models import Character, CharacterAvatar, Conversation, Message, Report, Scene, Voice, now_ms, uid
+from .voice_catalog import voice_view
 from .avatars import read_avatar, require_owned_avatar, delete_unused_avatar, avatar_referenced, MAX_ACCOUNT_AVATARS, MAX_ACCOUNT_BYTES
 from .search import normalized
 from .quotas import entitlement
@@ -210,8 +211,10 @@ async def scenes(db=Depends(db_session)):
 @router.get("/voices")
 async def voices(db=Depends(db_session)):
     return [
-        {"id": v.id, "name": v.name}
-        for v in (await db.execute(select(Voice).where(Voice.enabled.is_(True)))).scalars()
+        voice_view(v)
+        for v in (
+            await db.execute(select(Voice).where(Voice.enabled.is_(True)).order_by(Voice.name, Voice.id))
+        ).scalars()
     ]
 
 

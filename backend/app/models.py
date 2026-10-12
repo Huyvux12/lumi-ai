@@ -188,6 +188,8 @@ class Voice(Base):
     name: Mapped[str] = mapped_column(String(80))
     voice: Mapped[str] = mapped_column(String(40))
     style: Mapped[str] = mapped_column(String(300))
+    description_vi: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    description_en: Mapped[str] = mapped_column(String(300), default="", server_default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 

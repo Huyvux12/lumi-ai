@@ -11,7 +11,7 @@
 - Hiển thị QR VietQR trong PersonaX; tự kiểm tra trạng thái đơn mỗi 3 giây. SePay bank webhook xác thực HMAC, chống cấp quyền trùng, kiểm tra tài khoản/số tiền/mã đơn; đối soát qua **SePay API v2**.
 - Quota được reserve → commit/release ở backend và chỉ trả số liệu cho admin. Trang gói mô tả giới hạn bằng lời; không có số đã dùng/còn lại/reset trong public API.
 - Groq STT: ghi âm hoặc tải tệp → giải mã WAV mono 16 kHz có giới hạn → nhận transcript tiếng Việt → người dùng sửa và tự gửi. Không tự gửi lời nói vào chat.
-- Gemini 3.8 TTS: LLM chọn emotion, pace, delivery và vocal tags; backend kiểm tra allowlist. Chỉ các segment `dialogue` được đọc. `narration` không đi vào TTS. Stream PCM 16-bit LE, 24 kHz, mono; cache riêng theo người dùng và tin nhắn trong 24 giờ. Preset Kore/Puck; không có voice clone/design.
+- Gemini 3.8 TTS: LLM chọn emotion, pace, delivery và vocal tags; backend kiểm tra allowlist. Chỉ các segment `dialogue` được đọc. `narration` không đi vào TTS. Stream PCM 16-bit LE, 24 kHz, mono; cache riêng theo người dùng và tin nhắn trong 24 giờ. Đủ 30 giọng studio chính thức và 3 preset phong cách; không có voice clone/design.
 - Admin: tổng quan, người dùng, quota, khóa tài khoản/quyền, đơn/giao dịch/đối soát, phiên bản gói, prompt draft/publish/rollback/test API, preset giọng, duyệt/sửa catalog, bối cảnh, báo cáo và audit. Moderator chỉ quản lý catalog/báo cáo; owner cấp quyền và thay đổi gói.
 
 ## Chạy local
@@ -102,6 +102,8 @@ Dạng trả lời của LLM:
 UI bỏ tag khỏi chữ hiển thị. TTS giữ tag trong lời thoại và thêm `speechMetadata.style` đã ánh xạ ở backend. Đầu ra sai schema/tag bị từ chối và không tự chuyển cả phần kể chuyện sang giọng đọc. Tối đa 2 tag/đoạn, 4 tag/lượt; admin bật/tắt từ catalog 40 tag.
 
 TTS nhận **message ID thuộc tài khoản đang đăng nhập**, không nhận arbitrary text từ trình duyệt. Nghe lại cache không trừ thêm usage. Đổi giọng, dừng, reset hội thoại hoặc rời trang hủy audio và bỏ chunk cũ. Trần thời lượng audio được bảo vệ bởi reservation; audio vượt reservation sẽ bị ngắt để không vượt hạn mức.
+
+Danh sách giọng theo [tài liệu Google](https://ai.google.dev/gemini-api/docs/speech-generation#voice-options): 30 giọng studio có ID `gemini-<tên viết thường>` và mô tả tiếng Việt + tiếng Anh. Create/edit/chat lấy danh sách từ `GET /api/v1/voices`; admin có thể đổi tên, mô tả, phong cách hoặc bật/tắt từng preset. Các ID `kore-warm`, `puck-playful`, `kore-moe` được giữ để nhân vật cũ tiếp tục dùng đúng lựa chọn. Giọng studio dùng tông gốc, kết hợp emotion/pace của lời thoại; ba preset cũ thêm chỉ dẫn phong cách. Chạy Alembic `upgrade head` trước khi khởi động bản mới: migration bổ sung giọng/mô tả, giữ nguyên tên/phong cách/trạng thái admin đã chỉnh. Seed lặp lại không ghi đè cấu hình này. File `backend/app/seed/voices_v1.json` là snapshot bất biến dùng chung với migration; thay đổi catalog về sau cần snapshot/migration mới.
 
 Tokenizer Qwen được đóng gói từ [nguồn chính thức](https://huggingface.co/Qwen/Qwen3.8-27B/blob/72a217a/tokenizer.json), SHA256 `0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3`. Backend đếm prompt/profile/scene/history bằng tokenizer này, chừa margin framing rồi bỏ cặp lịch sử cũ khi cần. Token trên hóa đơn lấy từ `usage` Groq trả về; framing phía provider có thể khác. Khi đổi sang dòng model khác, cần thay tokenizer/budget adapter tương ứng.
 

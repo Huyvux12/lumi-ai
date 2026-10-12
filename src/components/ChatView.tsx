@@ -34,6 +34,7 @@ import { Mascot } from "./Mascot";
 import { Portrait } from "./Portrait";
 import { RichText } from "./RichText";
 import { PlanGate } from "./PlanGate";
+import { VoiceDescription } from "./VoiceDescription";
 
 const SPRING = {
   type: "spring",
@@ -950,6 +951,7 @@ function ChatSession({
             <label>
               Giọng{" "}
               <select
+                aria-label="Giọng đọc"
                 value={voice}
                 onChange={(e) => {
                   stopVoice();
@@ -987,6 +989,7 @@ function ChatSession({
                 Đang chuyển lời nói thành văn bản…
               </span>
             )}
+            <VoiceDescription voice={voices.find((v) => v.id === (voice || c.voice_id || "kore-warm"))} />
           </div>
         ) : (
           authReady && (
