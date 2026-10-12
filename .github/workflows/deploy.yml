@@ -1,101 +1,40 @@
-name: Deploy dev to AWS
+name: Deploy
 on:
   push:
-    branches: [dev]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Never interrupt a migration or replace a deployment while it is being verified.
+# A second push waits. Canceling would interrupt a migration on the host.
 concurrency:
-  group: aws-dev
+  group: lightsail-main
   cancel-in-progress: false
 
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
   deploy:
-    if: github.ref == 'refs/heads/dev'
     needs: checks
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-      AWS_STACK_NAME: ${{ vars.AWS_STACK_NAME }}
-      AWS_PAGER: ''
     steps:
-      - name: Check deployment configuration
-        shell: bash
-        run: |
-          missing=0
-          for name in AWS_REGION AWS_ROLE_ARN AWS_STACK_NAME; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Set repository variable $name. See deploy/aws/README.md."
-              missing=1
-            fi
-          done
-          exit "$missing"
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - uses: aws-actions/configure-aws-credentials@v5
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: lumi-dev-${{ github.run_id }}
-      - name: Read infrastructure outputs
-        id: infrastructure
-        shell: bash
-        run: |
-          aws cloudformation describe-stacks --stack-name "$AWS_STACK_NAME" > "$RUNNER_TEMP/stack.json"
-          python - "$RUNNER_TEMP/stack.json" <<'PY'
-          import json, os, sys
-          outputs = {o['OutputKey']: o['OutputValue'] for o in json.load(open(sys.argv[1]))['Stacks'][0]['Outputs']}
-          required = ['FrontendRepositoryUri', 'BackendRepositoryUri', 'TaskDefinitionArn',
-                      'ClusterName', 'ServiceName', 'PrivateSubnetIds', 'TaskSecurityGroupId']
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as target:
-              for key in required:
-                  value = outputs[key]
-                  if not value or '\n' in value or '\r' in value:
-                      raise ValueError(f'Invalid infrastructure output: {key}')
-                  print(f'{key}={value}', file=target)
-          PY
-      - uses: docker/setup-buildx-action@v3
-      - uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and push backend
-        id: backend
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.infrastructure.outputs.BackendRepositoryUri }}:${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          cache-from: type=gha,scope=aws-backend
-          cache-to: type=gha,mode=max,scope=aws-backend
-      - name: Build and push frontend
-        id: frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.infrastructure.outputs.FrontendRepositoryUri }}:${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          # Containers in one awsvpc task communicate over loopback. This is baked into Next rewrites.
-          build-args: PYTHON_API_URL=http://127.0.0.1:8000
-          cache-from: type=gha,scope=aws-frontend
-          cache-to: type=gha,mode=max,scope=aws-frontend
-      - name: Migrate, deploy and verify the exact revision
+      - name: Deploy to Lightsail
         env:
-          ECS_TASK_DEFINITION: ${{ steps.infrastructure.outputs.TaskDefinitionArn }}
-          ECS_CLUSTER: ${{ steps.infrastructure.outputs.ClusterName }}
-          ECS_SERVICE: ${{ steps.infrastructure.outputs.ServiceName }}
-          ECS_SUBNETS: ${{ steps.infrastructure.outputs.PrivateSubnetIds }}
-          ECS_SECURITY_GROUP: ${{ steps.infrastructure.outputs.TaskSecurityGroupId }}
-          FRONTEND_IMAGE: ${{ steps.infrastructure.outputs.FrontendRepositoryUri }}@${{ steps.frontend.outputs.digest }}
-          BACKEND_IMAGE: ${{ steps.infrastructure.outputs.BackendRepositoryUri }}@${{ steps.backend.outputs.digest }}
-        run: python scripts/deploy_ecs.py
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOST}" ] || [ -z "${SSH_KEY}" ]; then
+            echo "::error::Set LIGHTSAIL_HOST and LIGHTSAIL_SSH_KEY repository secrets."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          umask 077
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          printf '%s %s\n' "$HOST" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOzzG3jz+3RUJ1B+1HUSAGSL4y2sab7dsfA7QOXnwFJb" > ~/.ssh/known_hosts
+          tr -d '\r' < deploy/lightsail.sh | ssh -i ~/.ssh/lightsail.pem -o UserKnownHostsFile="${HOME}/.ssh/known_hosts" -o StrictHostKeyChecking=yes "ubuntu@${HOST}" bash -s

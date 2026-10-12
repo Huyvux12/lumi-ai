@@ -1,7 +1,7 @@
 name: Checks
 on:
   push:
-    branches-ignore: [dev]
+    branches-ignore: [dev, main]
   pull_request:
   workflow_call:
 permissions:
