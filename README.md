@@ -183,6 +183,9 @@ kiểm tra kết nối. Moderator có tổng quan riêng cho nội dung/báo cá
 chính và sử dụng AI vẫn chỉ dành cho admin/owner. API `/api/v1/admin/dashboard`
 trả tổng hợp theo kỳ; `/api/v1/admin/moderation-dashboard` chỉ trả dữ liệu kiểm duyệt.
 
+Xem [ảnh minh họa dashboard trên desktop và mobile](docs/admin-dashboard/README.md).
+Ảnh dùng dữ liệu kiểm thử, không phải số liệu vận hành thực tế.
+
 ```bash
 npm run typecheck
 npm run lint
