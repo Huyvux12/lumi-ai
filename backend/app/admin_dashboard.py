@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import case, func, select
 
-from .models import Audit, Character, Order, PaymentEvent, Report, Subscription, Usage, User, now_ms
+from .models import Audit, Character, Feedback, Order, PaymentEvent, Report, Subscription, Usage, User, now_ms
 from .quotas import VN
 
 DAY_MS = 86400000
@@ -174,6 +174,9 @@ async def dashboard(db, settings, days):
         )
 
     queue = await queue_counts(db)
+    queue["feedback_new"] = await db.scalar(
+        select(func.count()).select_from(Feedback).where(Feedback.status == "new")
+    )
     queue["payments_review"] = await db.scalar(
         select(func.count())
         .select_from(PaymentEvent)

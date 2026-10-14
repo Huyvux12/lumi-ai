@@ -239,7 +239,41 @@ class Report(Base):
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
+class Feedback(Base):
+    __tablename__ = "feedback"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    code: Mapped[str] = mapped_column(String(20), unique=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    source_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="new", index=True)
+    priority: Mapped[str] = mapped_column(String(16), default="normal")
+    assignee_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, index=True)
+    public_updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+    last_seen_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
+class FeedbackMessage(Base):
+    __tablename__ = "feedback_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    feedback_id: Mapped[str] = mapped_column(ForeignKey("feedback.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    author_role: Mapped[str] = mapped_column(String(16))
+    body: Mapped[str] = mapped_column(Text)
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
 from sqlalchemy import Index
+
+Index("ix_feedback_user_public_updated", Feedback.user_id, Feedback.public_updated_at)
+Index("ix_feedback_messages_thread_time", FeedbackMessage.feedback_id, FeedbackMessage.created_at)
 
 Index(
     "uq_active_plan",

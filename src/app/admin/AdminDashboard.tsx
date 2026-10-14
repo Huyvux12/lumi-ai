@@ -470,6 +470,19 @@ function Queue({
             tint: "bg-sky-300/10",
           },
         ]),
+    ...(queue.feedback_new === undefined
+      ? []
+      : [
+          {
+            tab: "feedback" as const,
+            label: "Phản hồi mới từ người dùng",
+            detail: "Báo lỗi, đề xuất và góp ý cần tiếp nhận",
+            count: queue.feedback_new,
+            icon: Flag,
+            color: "text-violet",
+            tint: "bg-violet/10",
+          },
+        ]),
   ];
   const total = entries.reduce((sum, entry) => sum + entry.count, 0);
   return (
@@ -518,6 +531,9 @@ function Queue({
 }
 
 const actionLabels: Record<string, string> = {
+  "feedback.update": "Cập nhật phản hồi",
+  "feedback.reply": "Trả lời phản hồi",
+  "feedback.note": "Ghi chú phản hồi",
   "character.moderate": "Kiểm duyệt nhân vật",
   "catalog.update": "Cập nhật hồ sơ nhân vật",
   "scene.create": "Tạo bối cảnh",

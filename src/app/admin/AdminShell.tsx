@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquareWarning,
+  MessageSquare,
   RefreshCw,
   Settings2,
   ShieldCheck,
@@ -32,6 +33,7 @@ export const adminLabels: Record<AdminTab, string> = {
   characters: "Nhân vật",
   scenes: "Bối cảnh",
   reports: "Báo cáo",
+  feedback: "Phản hồi người dùng",
   voices: "Giọng đọc",
   prompts: "System prompt",
   audit: "Nhật ký",
@@ -39,7 +41,10 @@ export const adminLabels: Record<AdminTab, string> = {
 const groups = [
   {
     label: "KHÔNG GIAN LÀM VIỆC",
-    items: [{ id: "summary", icon: LayoutDashboard }],
+    items: [
+      { id: "summary", icon: LayoutDashboard },
+      { id: "feedback", icon: MessageSquare },
+    ],
   },
   {
     label: "KINH DOANH",
@@ -149,9 +154,11 @@ export function AdminShell({
                     ? queue?.characters_pending
                     : id === "reports"
                       ? queue?.reports_open
-                      : id === "orders"
-                        ? queue?.payments_review
-                        : undefined;
+                      : id === "feedback"
+                        ? queue?.feedback_new
+                        : id === "orders"
+                          ? queue?.payments_review
+                          : undefined;
                 return (
                   <button
                     key={id}

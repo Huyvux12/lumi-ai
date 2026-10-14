@@ -8,6 +8,7 @@ export type AdminTab =
   | "characters"
   | "scenes"
   | "reports"
+  | "feedback"
   | "audit";
 export type DashboardActivity = {
   id: string;
@@ -20,6 +21,7 @@ export type DashboardQueue = {
   characters_pending: number;
   reports_open: number;
   payments_review?: number;
+  feedback_new?: number;
 };
 export type DashboardDay = {
   date: string;

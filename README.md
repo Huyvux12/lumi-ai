@@ -171,7 +171,7 @@ docker compose exec backend python -m app.cli bootstrap-owner --email ban@exampl
 
 Reverse proxy phải giữ cookie, raw webhook body và SSE/audio streaming; tắt buffering cho `/api/v1/conversations/*/turns` và `/api/v1/speech/jobs/*/stream`. Đồng hồ máy chủ cần đồng bộ để HMAC timestamp hoạt động. Chỉ trust forwarded headers từ proxy của bạn; không mở backend trực tiếp ra Internet. Backup database và volume, giữ `MFA_ENCRYPTION_KEY` qua các lần triển khai.
 
-## Kiểm tra
+## Dashboard quản trị
 
 Trang **Quản trị → Tổng quan** dùng bộ lọc 7/30/90 ngày, lưu lựa chọn trên URL và
 tổng hợp dữ liệu theo ngày Việt Nam. Doanh thu thuộc môi trường SePay đang cấu hình,
@@ -185,6 +185,42 @@ trả tổng hợp theo kỳ; `/api/v1/admin/moderation-dashboard` chỉ trả d
 
 Xem [ảnh minh họa dashboard trên desktop và mobile](docs/admin-dashboard/README.md).
 Ảnh dùng dữ liệu kiểm thử, không phải số liệu vận hành thực tế.
+
+## Góp ý & hỗ trợ
+
+Người dùng đã đăng nhập mở **Góp ý & hỗ trợ** trong menu để báo lỗi, đề xuất tính
+năng hoặc gửi góp ý khác. Có thể mở form từ **Gửi góp ý về trang này**; đường dẫn
+trang chỉ được lưu khi người dùng chọn đính kèm, luôn bỏ query string và fragment.
+Tính năng hỗ trợ vẫn dùng được khi gói AI đóng hoặc hết hạn.
+
+Mỗi phản hồi có mã `FB-…`, lịch sử trao đổi, trạng thái và dấu **Có cập nhật mới**.
+Các trạng thái gồm Mới, Đang xem xét, Đã lên kế hoạch, Đã giải quyết và Đã đóng.
+Phản hồi đã giải quyết/đóng không nhận bổ sung từ người gửi; admin có thể mở lại
+bằng cách đổi trạng thái. Muốn hỗ trợ vấn đề mới, người dùng gửi phản hồi mới.
+
+Admin/owner xử lý tại **Quản trị → Phản hồi người dùng**: tìm mã/tiêu đề, lọc loại
+và trạng thái, phân trang, phân công, đặt ưu tiên, trả lời hoặc ghi chú nội bộ.
+Khi chuyển sang Đã giải quyết/Đã đóng, phải nhập lời giải thích công khai.
+Moderator không truy cập hộp thư này. Ghi chú nội bộ, ưu tiên và người xử lý
+không được trả về API cá nhân; ghi chú không tạo dấu cập nhật mới cho người gửi.
+Thao tác quản trị được ghi audit; nội dung trao đổi không được chép vào audit.
+
+API cá nhân: `POST/GET /api/v1/feedback`, `GET /api/v1/feedback/{id}`,
+`POST /api/v1/feedback/{id}/messages`, `POST /api/v1/feedback/{id}/read`.
+API quản trị tương ứng ở `/api/v1/admin/feedback`, thêm `PATCH /{id}` và
+`GET /api/v1/admin/feedback-assignees`. PATCH yêu cầu `version` hiện tại;
+phiên bản cũ trả 409 để tránh ghi đè thay đổi. Danh sách mặc định 20, tối đa
+50 phản hồi/trang; lịch sử tối đa 50 trao đổi/trang, mặc định mở trang mới nhất.
+Giới hạn theo tài khoản: 5 phản hồi mới/giờ, 30 bổ sung/giờ; admin 120 trả lời/giờ.
+
+Chạy `cd backend && uv run --locked python -m alembic upgrade head` trước khi
+triển khai để tạo bảng `feedback` và `feedback_messages` (migration `b7c23a90d416`).
+Đợt này thông báo cập nhật nằm trong trang phản hồi; đính kèm ảnh và email thuộc
+đợt tiếp theo.
+
+Xem [ảnh minh họa giao diện góp ý và hộp thư quản trị](docs/user-feedback/README.md).
+
+## Kiểm tra
 
 ```bash
 npm run typecheck

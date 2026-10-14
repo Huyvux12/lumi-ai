@@ -194,7 +194,7 @@ async def test_dashboard_groups_vietnam_days_and_counts_all_records(env, monkeyp
     assert data["usage"]["released_requests"] == 1
     assert data["usage"]["input_tokens"] == 1100 and data["usage"]["output_tokens"] == 250
     assert data["usage"]["llm_estimated_usd"] == 0.0019
-    assert data["queue"] == {"characters_pending": 1, "reports_open": 1, "payments_review": 1}
+    assert data["queue"] == {"characters_pending": 1, "reports_open": 1, "payments_review": 1, "feedback_new": 0}
     assert "details" not in data["activity"][0]
     moderator = await client.get("/api/v1/admin/moderation-dashboard")
     assert moderator.status_code == 200

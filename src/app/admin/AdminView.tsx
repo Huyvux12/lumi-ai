@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
 import { SecurityPanel } from "@/components/SecurityPanel";
+import { FeedbackWorkspace } from "@/components/FeedbackWorkspace";
 import { Portrait } from "@/components/Portrait";
 import type { UserCharacter } from "@/lib/userCharacters";
 import type { Scene } from "@/lib/data";
@@ -233,6 +234,7 @@ function AdminAccount() {
   const requestedDays = Number(searchParams.get("days") ?? 30);
   const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
   const [queue, setQueue] = useState<DashboardQueue>();
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0);
   const requestKey = `${moderator ? "moderation" : "admin"}:${tab}:${days}`;
   const [cachedData, setData] = useState<unknown>(null);
   const [loadedKey, setLoadedKey] = useState("");
@@ -263,7 +265,7 @@ function AdminAccount() {
     setBusy(true);
     try {
       const [payload, options, presets] = await Promise.all([
-        api(tab === "summary" ? moderator ? "/admin/moderation-dashboard" : `/admin/dashboard?days=${days}` : `/admin/${tab}`),
+        api(tab === "summary" || tab === "feedback" ? moderator ? "/admin/moderation-dashboard" : `/admin/dashboard?days=${days}` : `/admin/${tab}`),
         tab === "voices" ? api<string[]>("/admin/voices/options") : Promise.resolve(null),
         tab === "characters" && !moderator ? api<Voice[]>("/admin/voices") : Promise.resolve(null),
       ]);
@@ -272,7 +274,7 @@ function AdminAccount() {
       if (presets) setVoicePresets(presets);
       setData(payload);
       setLoadedKey(requestKey);
-      if (tab === "summary") setQueue((payload as DashboardData).queue);
+      if (tab === "summary" || tab === "feedback") setQueue((payload as DashboardData).queue);
       if (tab === "orders") {
         const rows = await api<Payment[]>("/admin/payments");
         if (version === fetchEpoch.current) setPayments(rows);
@@ -327,6 +329,7 @@ function AdminAccount() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", next);
     params.set("days", String(period));
+    for (const key of ["feedback", "compose", "message_page", "status", "kind", "q", "page"]) params.delete(key);
     if (next === tab) router.replace(`/admin?${params}`, { scroll: false });
     else router.push(`/admin?${params}`, { scroll: false });
   }
@@ -349,7 +352,7 @@ function AdminAccount() {
   return (
     <AdminShell user={user} tab={tab} days={days} busy={busy} queue={queue}
       updatedAt={dashboard?.generated_at} onNavigate={navigate} onPeriod={(period) => navigate("summary", period)}
-      onRefresh={() => { setBusy(true); setError(""); void load(); }}>
+      onRefresh={() => { setBusy(true); setError(""); setFeedbackRefresh(value => value + 1); void load(); }}>
       {message && <p role="status" className="mb-5 rounded-xl border border-emerald-300/10 bg-emerald-300/5 p-3 text-sm text-emerald-300">{message}</p>}
       {error && (
         <p
@@ -361,6 +364,7 @@ function AdminAccount() {
       )}
       {tab === "summary" && !dashboard && busy && <DashboardSkeleton />}
       {dashboard && <AdminDashboard data={dashboard} onNavigate={navigate} />}
+      {tab === "feedback" && !moderator && <FeedbackWorkspace admin refreshKey={feedbackRefresh} onChanged={() => { void load(); }} />}
       {tab !== "summary" && data === null && busy && <p role="status" className="py-12 text-center text-sm text-fg-3">Đang tải dữ liệu…</p>}
       {data !== null && tab === "users" && (
         <>

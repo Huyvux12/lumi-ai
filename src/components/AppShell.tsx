@@ -14,6 +14,7 @@ import {
   UserRound,
   CreditCard,
   Shield,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { loadRecent, refreshRecent } from "@/lib/chat/client";
@@ -125,9 +126,15 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         {item("/search", "Tìm kiếm", Search)}
         {user && item("/profile", "Hồ sơ", UserRound)}
         {item("/billing", "Gói & thanh toán", CreditCard)}
+        {user && item("/feedback", "Góp ý & hỗ trợ", MessageSquare)}
         {user && user.role !== "user" && item("/admin", "Quản trị", Shield)}
         {item("/welcome", "Giới thiệu", Sparkles)}
       </nav>
+      {user && !pathname.startsWith("/feedback") && <Link
+        href={`/feedback?compose=1&from=${encodeURIComponent(pathname)}`}
+        onClick={onNavigate}
+        className="px-3 text-xs text-fg-3 hover:text-accent"
+      >Gửi góp ý về trang này</Link>}
       <div className="flex min-h-0 flex-1 flex-col">
         <h2 className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-fg-3">
           Gần đây
