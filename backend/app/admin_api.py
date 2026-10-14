@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import delete, func, select
 from .billing import apply_payment, matches_invoice, order_status, sepay_transaction_payload
+from .admin_dashboard import dashboard, moderation_dashboard
 from .catalog_api import character_view
 from .models import (
     Audit,
@@ -29,6 +30,18 @@ from .security import db_session, fail, require_admin, require_owner, require_st
 from pydantic import Field
 
 router = APIRouter(prefix="/admin")
+
+
+@router.get("/dashboard")
+async def dashboard_view(request: Request, days: int = Query(default=30), user=Depends(require_admin), db=Depends(db_session)):
+    if days not in {7, 30, 90}:
+        fail("INVALID_PERIOD", "Chọn kỳ 7, 30 hoặc 90 ngày.", 422)
+    return await dashboard(db, request.app.state.settings, days)
+
+
+@router.get("/moderation-dashboard")
+async def moderation_dashboard_view(user=Depends(require_staff), db=Depends(db_session)):
+    return await moderation_dashboard(db)
 
 
 def audit(db, user, action, target, details):

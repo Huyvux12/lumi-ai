@@ -1,5 +1,9 @@
 "use client";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AdminShell, adminLabels } from "./AdminShell";
+import { AdminDashboard, DashboardSkeleton } from "./AdminDashboard";
+import type { AdminTab, DashboardData, DashboardQueue } from "./dashboard-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
@@ -76,33 +80,7 @@ type Audit = {
   details: unknown;
   created_at: number;
 };
-type Summary = {
-  users: number;
-  active_users_7d: number;
-  premium_users: number;
-  revenue_vnd: number;
-  input_tokens_30d: number;
-  output_tokens_30d: number;
-  llm_estimated_usd_30d: number;
-  tts_ms_30d: number;
-  stt_ms_30d: number;
-  requests_released_30d: number;
-  providers: Record<string, boolean | string>;
-  cost_note: string;
-};
-const allTabs = [
-  ["summary", "Tổng quan"],
-  ["users", "Người dùng & quota"],
-  ["orders", "Thanh toán"],
-  ["plans", "Gói & giới hạn"],
-  ["prompts", "System prompt"],
-  ["voices", "Giọng đọc"],
-  ["characters", "Nhân vật"],
-  ["scenes", "Bối cảnh"],
-  ["reports", "Báo cáo"],
-  ["audit", "Nhật ký"],
-] as const;
-type Tab = (typeof allTabs)[number][0];
+type Tab = AdminTab;
 const field = "field w-full";
 function ModerationPreview({ id }: { id: string }) {
   const [character, setCharacter] = useState<UserCharacter | null>(null);
@@ -245,10 +223,20 @@ export function AdminView() {
 function AdminAccount() {
   const user = useUser();
   const ready = useAuthReady();
-  const [tab, setTab] = useState<Tab>(
-    user?.role === "moderator" ? "characters" : "summary",
-  );
-  const [data, setData] = useState<unknown>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const moderator = user?.role === "moderator";
+  const requestedTab = searchParams.get("tab") ?? "summary";
+  const tab: Tab = Object.hasOwn(adminLabels, requestedTab) &&
+    (!moderator || ["summary", "characters", "scenes", "reports"].includes(requestedTab))
+    ? requestedTab as Tab : "summary";
+  const requestedDays = Number(searchParams.get("days") ?? 30);
+  const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
+  const [queue, setQueue] = useState<DashboardQueue>();
+  const requestKey = `${moderator ? "moderation" : "admin"}:${tab}:${days}`;
+  const [cachedData, setData] = useState<unknown>(null);
+  const [loadedKey, setLoadedKey] = useState("");
+  const data = loadedKey === requestKey ? cachedData : null;
   const [voiceOptions, setVoiceOptions] = useState<string[]>([]);
   const [voicePresets, setVoicePresets] = useState<Voice[]>([]);
   const [error, setError] = useState("");
@@ -269,16 +257,13 @@ function AdminAccount() {
   const [tags, setTags] = useState<string[]>([]);
   const [reason, setReason] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
-  const moderator = user?.role === "moderator";
-  const tabs = moderator
-    ? allTabs.filter(([id]) => ["characters", "scenes", "reports"].includes(id))
-    : allTabs;
   const fetchEpoch = useRef(0);
   const load = useCallback(async () => {
     const version = ++fetchEpoch.current;
+    setBusy(true);
     try {
       const [payload, options, presets] = await Promise.all([
-        api(`/admin/${tab}`),
+        api(tab === "summary" ? moderator ? "/admin/moderation-dashboard" : `/admin/dashboard?days=${days}` : `/admin/${tab}`),
         tab === "voices" ? api<string[]>("/admin/voices/options") : Promise.resolve(null),
         tab === "characters" && !moderator ? api<Voice[]>("/admin/voices") : Promise.resolve(null),
       ]);
@@ -286,6 +271,8 @@ function AdminAccount() {
       if (options) setVoiceOptions(options);
       if (presets) setVoicePresets(presets);
       setData(payload);
+      setLoadedKey(requestKey);
+      if (tab === "summary") setQueue((payload as DashboardData).queue);
       if (tab === "orders") {
         const rows = await api<Payment[]>("/admin/payments");
         if (version === fetchEpoch.current) setPayments(rows);
@@ -298,10 +285,12 @@ function AdminAccount() {
     } finally {
       if (version === fetchEpoch.current) setBusy(false);
     }
-  }, [tab, moderator]);
+  }, [tab, moderator, days, requestKey]);
   useEffect(() => {
+    const versions = fetchEpoch;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load updates state after the protected network response
     if (ready && user && user.role !== "user") void load();
+    return () => { versions.current++; };
   }, [ready, user, load]);
   async function act(path: string, body: unknown, method = "POST") {
     setBusy(true);
@@ -326,6 +315,21 @@ function AdminAccount() {
   ) {
     setEditor({ title, path, method, body: { ...body, reason: "" } });
   }
+  function navigate(next: Tab, period = days) {
+    if (next === tab && period === days) return;
+    fetchEpoch.current++;
+    setData(null);
+    setBusy(true);
+    setError("");
+    setUsage(null);
+    setMessage("");
+    setEditor(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    params.set("days", String(period));
+    if (next === tab) router.replace(`/admin?${params}`, { scroll: false });
+    else router.push(`/admin?${params}`, { scroll: false });
+  }
   if (!ready) return <p className="p-10">Đang kiểm tra phiên…</p>;
   if (!user)
     return (
@@ -337,58 +341,16 @@ function AdminAccount() {
     );
   if (user.role === "user")
     return <p className="p-10">Tài khoản này không có quyền quản trị.</p>;
-  const summary = data as Summary | null;
+  const dashboard = tab === "summary" ? data as DashboardData | null : null;
   const promptData = data as {
     tag_catalog: string[];
     versions: Prompt[];
   } | null;
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Quản trị PersonaX</h1>
-        <span className="rounded-full bg-accent/15 px-4 py-2 text-sm text-accent">
-          {user.role} · @{user.username}
-        </span>
-      </div>
-      <SecurityPanel />
-      <nav aria-label="Trang quản trị" className="my-6 flex flex-wrap gap-2">
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => {
-              setTab(id);
-              setData(null);
-              setBusy(true);
-              setError("");
-              setUsage(null);
-              setMessage("");
-            }}
-            disabled={busy}
-            aria-pressed={tab === id}
-            className={`${button} ${tab === id ? "bg-accent/20 text-accent" : ""}`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <div className="mb-5 flex gap-3">
-        <button
-          className={button}
-          onClick={() => {
-            setBusy(true);
-            setError("");
-            void load();
-          }}
-          disabled={busy}
-        >
-          {busy ? "Đang xử lý…" : "Làm mới"}
-        </button>
-        {message && (
-          <p role="status" className="self-center text-accent">
-            {message}
-          </p>
-        )}
-      </div>
+    <AdminShell user={user} tab={tab} days={days} busy={busy} queue={queue}
+      updatedAt={dashboard?.generated_at} onNavigate={navigate} onPeriod={(period) => navigate("summary", period)}
+      onRefresh={() => { setBusy(true); setError(""); void load(); }}>
+      {message && <p role="status" className="mb-5 rounded-xl border border-emerald-300/10 bg-emerald-300/5 p-3 text-sm text-emerald-300">{message}</p>}
       {error && (
         <p
           role="alert"
@@ -397,51 +359,9 @@ function AdminAccount() {
           {error}
         </p>
       )}
-      {data !== null && tab === "summary" && summary && (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["Người dùng", summary.users],
-              ["Hoạt động 7 ngày", summary.active_users_7d],
-              ["Premium đang dùng", summary.premium_users],
-              ["Doanh thu (VND)", summary.revenue_vnd],
-              ["Token vào / 30 ngày", summary.input_tokens_30d],
-              ["Token ra / 30 ngày", summary.output_tokens_30d],
-              ["Ước tính LLM (USD)", summary.llm_estimated_usd_30d],
-              ["Yêu cầu đã nhả reservation", summary.requests_released_30d],
-            ].map(([label, value]) => (
-              <section key={String(label)} className="glass rounded-2xl p-5">
-                <p className="text-sm text-fg-2">{label}</p>
-                <p className="mt-3 text-2xl font-bold">
-                  {Number(value).toLocaleString("vi-VN")}
-                </p>
-              </section>
-            ))}
-          </div>
-          <p className="my-4 text-sm text-fg-2">{summary.cost_note}</p>
-          <div className="glass rounded-2xl p-5">
-            <h2 className="mb-3 font-semibold">Kết nối dịch vụ</h2>
-            <ul className="space-y-2 text-sm">
-              {Object.entries(summary.providers).map(([name, value]) => (
-                <li key={name}>
-                  {name}:{" "}
-                  <span className="text-accent">
-                    {typeof value === "boolean"
-                      ? value
-                        ? "Đã cấu hình"
-                        : "Chưa cấu hình"
-                      : value}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 text-sm text-fg-2">
-              TTS: {(summary.tts_ms_30d / 60000).toFixed(1)} phút · STT:{" "}
-              {(summary.stt_ms_30d / 60000).toFixed(1)} phút / 30 ngày
-            </p>
-          </div>
-        </>
-      )}
+      {tab === "summary" && !dashboard && busy && <DashboardSkeleton />}
+      {dashboard && <AdminDashboard data={dashboard} onNavigate={navigate} />}
+      {tab !== "summary" && data === null && busy && <p role="status" className="py-12 text-center text-sm text-fg-3">Đang tải dữ liệu…</p>}
       {data !== null && tab === "users" && (
         <>
           <div className="overflow-x-auto">
@@ -1184,6 +1104,7 @@ function AdminAccount() {
           </form>
         </div>
       )}
-    </div>
+      <div id="account-security" className="mt-8"><SecurityPanel /></div>
+    </AdminShell>
   );
 }

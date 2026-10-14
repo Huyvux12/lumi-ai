@@ -193,7 +193,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const bare = BARE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const bare = pathname === "/admin" || pathname.startsWith("/admin/") || BARE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   useEffect(() => {
     if (!open) return;

@@ -173,6 +173,16 @@ Reverse proxy phải giữ cookie, raw webhook body và SSE/audio streaming; t�
 
 ## Kiểm tra
 
+Trang **Quản trị → Tổng quan** dùng bộ lọc 7/30/90 ngày, lưu lựa chọn trên URL và
+tổng hợp dữ liệu theo ngày Việt Nam. Doanh thu thuộc môi trường SePay đang cấu hình,
+tính theo `paid_at` của đơn còn ở trạng thái `paid`, không gồm đơn đã hoàn tiền.
+Người dùng hoạt động có ít nhất một lượt chat/STT/TTS hoàn tất trong kỳ. Premium
+và hàng chờ là trạng thái hiện tại, không đổi theo bộ lọc ngày. Chi phí LLM chỉ là
+ước tính theo giá tham chiếu Qwen 3.8; cờ dịch vụ chỉ phản ánh cấu hình, không phải
+kiểm tra kết nối. Moderator có tổng quan riêng cho nội dung/báo cáo; số liệu tài
+chính và sử dụng AI vẫn chỉ dành cho admin/owner. API `/api/v1/admin/dashboard`
+trả tổng hợp theo kỳ; `/api/v1/admin/moderation-dashboard` chỉ trả dữ liệu kiểm duyệt.
+
 ```bash
 npm run typecheck
 npm run lint

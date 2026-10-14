@@ -92,6 +92,7 @@ test("moderation UI previews a pending public image and scenario", async ({ page
   expect(created.ok()).toBeTruthy();
   expect((await page.request.post("/api/v1/auth/login", { headers: { "X-Lumi-Request": "1" }, data: { email: "moderator@example.com", password: "BrowserTest123!" } })).ok()).toBeTruthy();
   await page.goto("/admin");
+  await page.getByRole("button", { name: "Nhân vật", exact: true }).click();
   const card = page.locator("section").filter({ hasText: profile.name }).filter({ hasText: "pending" });
   await card.getByRole("button", { name: "Xem hồ sơ & ảnh" }).click();
   await expect(card.getByText(profile.scenario, { exact: false })).toBeVisible();
