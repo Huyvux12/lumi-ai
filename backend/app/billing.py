@@ -25,8 +25,29 @@ def qr_url(settings, invoice, amount):
     )
 
 
+def order_status(order):
+    return "expired" if order.status == "pending" and order.expires_at <= now_ms() else order.status
+
+
+def matches_invoice(invoice, content):
+    return bool(re.search(r"(?<![A-Z0-9])" + re.escape(invoice) + r"(?![A-Z0-9])", content.upper()))
+
+
+def sepay_transaction_payload(transaction):
+    """Translate SePay v2 lookup rows to the webhook schema, including virtual accounts."""
+    return {
+        "id": transaction.get("id"),
+        "accountNumber": transaction.get("account_number"),
+        "subAccount": transaction.get("va") or "",
+        "content": str(transaction.get("transaction_content") or ""),
+        "code": transaction.get("code"),
+        "referenceCode": transaction.get("reference_number"),
+        "transferType": transaction.get("transfer_type"),
+        "transferAmount": transaction.get("amount_in"),
+    }
+
+
 def order_view(order, settings):
-    status = "expired" if order.status == "pending" and order.expires_at <= now_ms() else order.status
     return {
         "id": order.id,
         "invoice": order.invoice,
@@ -34,7 +55,7 @@ def order_view(order, settings):
         "list_price_vnd": order.list_price_vnd,
         "discount_percent": order.discount_percent,
         "promo_code": order.promo_code,
-        "status": status,
+        "status": order_status(order),
         "created_at": order.created_at,
         "expires_at": order.expires_at,
         "paid_at": order.paid_at,

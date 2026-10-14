@@ -1126,7 +1126,9 @@ function TryChat({ c }: { c: Character }) {
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const ready =
-    c.name.length > 0 && c.persona.length > 0 && c.greeting.length > 0;
+    (["name", "tagline", "description", "persona", "greeting"] as const).every(
+      (key) => c[key].trim().length >= LIMITS[key][0] && c[key].trim().length <= LIMITS[key][1],
+    ) && (c.scenario?.trim().length ?? 0) <= LIMITS.scenario[1];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -1175,7 +1177,7 @@ function TryChat({ c }: { c: Character }) {
       {!ready ? (
         <div className="flex items-center gap-3 p-2 text-sm text-fg-2">
           <Mascot mood="think" className="size-12 shrink-0" />
-          Điền tên, tính cách và lời chào để thử trò chuyện nhé.
+          Điền đầy đủ tên, giới thiệu, mô tả, tính cách và lời chào để thử trò chuyện nhé.
         </div>
       ) : (
         <>

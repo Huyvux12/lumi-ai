@@ -250,6 +250,7 @@ function AdminAccount() {
   );
   const [data, setData] = useState<unknown>(null);
   const [voiceOptions, setVoiceOptions] = useState<string[]>([]);
+  const [voicePresets, setVoicePresets] = useState<Voice[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(true);
@@ -276,12 +277,14 @@ function AdminAccount() {
   const load = useCallback(async () => {
     const version = ++fetchEpoch.current;
     try {
-      const [payload, options] = await Promise.all([
+      const [payload, options, presets] = await Promise.all([
         api(`/admin/${tab}`),
         tab === "voices" ? api<string[]>("/admin/voices/options") : Promise.resolve(null),
+        tab === "characters" && !moderator ? api<Voice[]>("/admin/voices") : Promise.resolve(null),
       ]);
       if (version !== fetchEpoch.current) return;
       if (options) setVoiceOptions(options);
+      if (presets) setVoicePresets(presets);
       setData(payload);
       if (tab === "orders") {
         const rows = await api<Payment[]>("/admin/payments");
@@ -295,7 +298,7 @@ function AdminAccount() {
     } finally {
       if (version === fetchEpoch.current) setBusy(false);
     }
-  }, [tab]);
+  }, [tab, moderator]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load updates state after the protected network response
     if (ready && user && user.role !== "user") void load();
@@ -879,6 +882,7 @@ function AdminAccount() {
                         tagline,
                         description,
                         persona,
+                        scenario,
                         greeting,
                         tags,
                         hue,
@@ -894,6 +898,7 @@ function AdminAccount() {
                           tagline,
                           description,
                           persona,
+                          scenario: scenario ?? "",
                           greeting,
                           tags,
                           hue,
@@ -1070,6 +1075,7 @@ function AdminAccount() {
                 role: ["user", "moderator", "admin", "owner"],
                 status: ["approved", "pending", "hidden"],
                 voice: voiceOptions,
+                voice_id: voicePresets.map((preset) => preset.id),
               };
               if (choices[key])
                 return (
@@ -1087,7 +1093,9 @@ function AdminAccount() {
                       }
                     >
                       {choices[key].map((v) => (
-                        <option key={v}>{v}</option>
+                        <option key={v} value={v} disabled={key === "voice_id" && !voicePresets.find((preset) => preset.id === v)?.enabled}>
+                          {key === "voice_id" ? voicePresets.find((preset) => preset.id === v)?.name ?? v : v}
+                        </option>
                       ))}
                     </select>
                   </label>
@@ -1132,7 +1140,7 @@ function AdminAccount() {
                   ) : (
                     <textarea
                       aria-label={editorLabels[key] ?? key}
-                      required={!["style", "description_vi", "description_en"].includes(key)}
+                      required={!["style", "description_vi", "description_en", "seed", "scenario"].includes(key)}
                       rows={
                         ["persona", "description", "premise"].includes(key)
                           ? 5

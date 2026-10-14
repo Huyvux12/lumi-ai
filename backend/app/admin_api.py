@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy import delete, func, select
-from .billing import apply_payment
+from .billing import apply_payment, matches_invoice, order_status, sepay_transaction_payload
 from .catalog_api import character_view
 from .models import (
     Audit,
@@ -138,7 +138,7 @@ async def orders(user=Depends(require_admin), db=Depends(db_session)):
             "user_id": o.user_id,
             "invoice": o.invoice,
             "amount_vnd": o.amount_vnd,
-            "status": o.status,
+            "status": order_status(o),
             "environment": o.environment,
             "created_at": o.created_at,
         }
@@ -190,17 +190,9 @@ async def reconcile(
     matched = 0
     for transaction in result.json().get("data", []):
         content = str(transaction.get("transaction_content") or "")
-        if order.invoice not in content.upper().split():
+        if not matches_invoice(order.invoice, content):
             continue
-        payload = {
-            "id": transaction.get("id"),
-            "accountNumber": transaction.get("account_number"),
-            "content": content,
-            "code": transaction.get("code"),
-            "referenceCode": transaction.get("reference_number"),
-            "transferType": transaction.get("transfer_type"),
-            "transferAmount": transaction.get("amount_in"),
-        }
+        payload = sepay_transaction_payload(transaction)
         applied = await apply_payment(db, cfg, payload)
         matched += applied.status == "applied"
     audit(db, user, "order.reconcile", ident, {"matched": matched, "reason": body.reason})

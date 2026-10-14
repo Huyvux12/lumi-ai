@@ -3,10 +3,9 @@
 import argparse
 import asyncio
 import logging
-import re
 import httpx
 from sqlalchemy import select, func
-from .billing import apply_payment
+from .billing import apply_payment, matches_invoice, sepay_transaction_payload
 from .config import Settings
 from .db import database
 from .models import Order, now_ms
@@ -64,18 +63,9 @@ async def reconcile_once(cfg, factory, client):
             page += 1
         for tx in transactions:
             content = str(tx.get("transaction_content") or "")
-            if not re.search(r"(?<![A-Z0-9])" + re.escape(order.invoice) + r"(?![A-Z0-9])", content.upper()):
+            if not matches_invoice(order.invoice, content):
                 continue
-            payload = {
-                "id": tx.get("id"),
-                "accountNumber": tx.get("account_number"),
-                "subAccount": tx.get("va") or "",
-                "content": content,
-                "code": tx.get("code"),
-                "transferType": tx.get("transfer_type"),
-                "transferAmount": tx.get("amount_in"),
-                "referenceCode": tx.get("reference_number"),
-            }
+            payload = sepay_transaction_payload(tx)
             async with factory() as db:
                 event = await apply_payment(db, cfg, payload)
                 matched += event.status == "applied"

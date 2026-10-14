@@ -90,6 +90,7 @@ export function CharacterProfile({
                     mutation({ character_id: c.id, reason }),
                   );
                   setReportMessage("Đã gửi báo cáo.");
+                  setReason("");
                   setReporting(false);
                 } catch (error) {
                   setReportMessage(
@@ -105,7 +106,7 @@ export function CharacterProfile({
                 <textarea
                   className="field mt-2"
                   required
-                  minLength={3}
+                  minLength={5}
                   maxLength={500}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}

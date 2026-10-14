@@ -4,8 +4,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 COPY . .
 RUN uv sync --locked --no-dev --no-editable --python /usr/local/bin/python
-RUN groupadd --gid 1000 lumi && useradd --create-home --uid 1000 --gid lumi lumi && mkdir /data && chown lumi:lumi /data
+RUN groupadd --gid 1000 lumi && useradd --create-home --uid 1000 --gid lumi lumi && mkdir /data && chown lumi:lumi /data && chmod -R a+rX /app
 USER lumi
 ENV PATH="/app/.venv/bin:$PATH" DATA_DIR=/data AUTO_MIGRATE=false
 EXPOSE 8000
-CMD ["sh", "-c", "python -m alembic upgrade head && python -m app.cli seed && exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log"]
+CMD ["sh", "-c", "python -m alembic upgrade head && python -m app.cli seed && exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1,::1 --no-access-log"]

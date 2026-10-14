@@ -233,6 +233,7 @@ function ChatSession({
         !(e instanceof DOMException && e.name === "AbortError")
       )
         setError(e instanceof Error ? e.message : "Không thể phát giọng đọc.");
+      if (voiceVersion === voiceEpoch.current && callActive.current) endCall();
     } finally {
       if (version === epoch.current && voiceVersion === voiceEpoch.current)
         setPlaying(null);
@@ -388,6 +389,7 @@ function ChatSession({
         const result = await transcript(
           blob,
           blob.type.includes("mp4") ? "speech.m4a" : "speech.webm",
+          ctrl.signal,
         );
         text = result.text.trim();
       } catch (e) {
@@ -395,13 +397,17 @@ function ChatSession({
         const message = e instanceof Error ? e.message : "";
         if (message.includes("Chưa nhận được lời nói")) continue;
         setError(message || "Không thể nhận dạng lời nói.");
-        continue;
+        endCall();
+        return;
       }
       if (!text || callEpoch.current !== version) continue;
       const reply = await sendRef.current(text);
       if (callEpoch.current !== version) return;
-      if (!reply?.id || !reply.segments?.some((s) => s.type === "dialogue"))
-        continue;
+      if (!reply?.id) {
+        endCall();
+        return;
+      }
+      if (!reply.segments?.some((s) => s.type === "dialogue")) continue;
       setCallMode("speaking");
       await listenRef.current(reply);
     }
@@ -743,6 +749,8 @@ function ChatSession({
             <p className="text-center text-sm text-fg-2">Đang tải hội thoại…</p>
           )}
           {messages.map((m, i) => {
+            if (m.role === "assistant" && !m.content && ["failed", "interrupted"].includes(m.status ?? ""))
+              return null;
             const isLast = i === messages.length - 1;
             if (m.role === "assistant" && isLast && waitingFirstToken) {
               return (

@@ -160,6 +160,9 @@ async def audio(ident: str, request: Request, user=Depends(require_feature_user)
         fail("AUDIO_UNAVAILABLE", "Yêu cầu đọc đã hết hạn. Hãy thử lại.", 409)
     voice = await db.get(Voice, row.voice_id)
     if not voice or not voice.enabled:
+        row.status = "failed"
+        await db.commit()
+        await finish(request.app.state.db, row.usage_id, success=False)
         fail("INVALID_VOICE", "Giọng đọc không khả dụng.", 422)
     row.status = "streaming"
     await db.commit()

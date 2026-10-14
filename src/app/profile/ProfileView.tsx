@@ -405,7 +405,7 @@ function Profile({ user }: { user: User }) {
               <Mascot mood="sad" className="size-28" />
               <p className="text-fg-2">
                 <strong className="text-fg">{confirmDel.name}</strong> và toàn
-                bộ lịch sử trò chuyện sẽ biến mất khỏi trình duyệt này. Không
+                bộ lịch sử trò chuyện của nhân vật sẽ bị xóa khỏi tài khoản. Không
                 thể hoàn tác.
               </p>
               <div className="mt-2 flex w-full gap-2">

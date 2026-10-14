@@ -247,7 +247,7 @@ Resources:
           Image: !Sub '${BackendRepository.RepositoryUri}:bootstrap'
           Essential: true
           # Migrations run once in a separate task, never on API restarts.
-          Command: [python, -m, uvicorn, 'app.main:app', --host, 0.0.0.0, --port, '8000', --no-access-log]
+          Command: [python, -m, uvicorn, 'app.main:app', --host, 0.0.0.0, --port, '8000', --proxy-headers, --forwarded-allow-ips, '127.0.0.1,::1', --no-access-log]
           StopTimeout: 120
           Environment:
             - {Name: APP_ENV, Value: production}

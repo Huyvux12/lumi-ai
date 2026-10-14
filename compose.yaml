@@ -32,7 +32,13 @@ services:
       DATA_DIR: /data
       AUTO_MIGRATE: "false"
     volumes: [backend_data:/data]
-    ports: [127.0.0.1:8000:8000]
+    ports: [127.0.0.1:8000:8000, 127.0.0.1:3000:3000]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -42,9 +48,25 @@ services:
     build:
       context: .
       args:
-        PYTHON_API_URL: http://backend:8000
-    ports: [127.0.0.1:3000:3000]
-    depends_on: [backend]
+        PYTHON_API_URL: http://127.0.0.1:8000
+    network_mode: service:backend
+    depends_on:
+      backend: {condition: service_healthy}
+    restart: unless-stopped
+  worker:
+    profiles: [reconciliation]
+    image: ghcr.io/huyvux12/lumi-ai-backend:main
+    build: ./backend
+    command: [python, -m, app.worker]
+    env_file: .env.backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lumi:${POSTGRES_PASSWORD}@postgres:5432/lumi
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      AUTO_MIGRATE: "false"
+    volumes: [backend_data:/data]
+    depends_on:
+      backend: {condition: service_healthy}
     restart: unless-stopped
 volumes:
   postgres_data:

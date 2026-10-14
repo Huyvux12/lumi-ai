@@ -3,10 +3,27 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Sparkles, UserPlus } from "lucide-react";
-import { getCharacter, type Scene } from "@/lib/data";
+import type { Character, Scene } from "@/lib/data";
+import { api } from "@/lib/api";
+import { useUser } from "@/lib/auth";
 import { Portrait } from "./Portrait";
 
 export function SceneCarousel({ scenes }: { scenes: Scene[] }) {
+  const user = useUser();
+  const [catalog, setCatalog] = useState<{ key: string; characters: Character[] }>({ key: "", characters: [] });
+  const leadIds = Array.from(new Set(scenes.map((scene) => scene.characterIds[0]).filter(Boolean))).sort().join(",");
+  const catalogKey = `${user?.id ?? "guest"}:${leadIds}`;
+  const characters = catalog.key === catalogKey ? catalog.characters : [];
+  useEffect(() => {
+    if (!leadIds) return;
+    const controller = new AbortController();
+    const query = new URLSearchParams({ limit: "200" });
+    leadIds.split(",").forEach((id) => query.append("ids", id));
+    api<Character[]>(`/characters?${query}`, { signal: controller.signal })
+      .then((characters) => setCatalog({ key: catalogKey, characters }))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [leadIds, catalogKey]);
   const ref = useRef<HTMLUListElement>(null);
   const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
   const [edges, setEdges] = useState({ start: true, end: false });
@@ -105,7 +122,7 @@ export function SceneCarousel({ scenes }: { scenes: Scene[] }) {
         className="no-scrollbar -mx-4 flex cursor-grab snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 pb-6 pt-2 active:cursor-grabbing sm:mx-0 sm:scroll-px-0 sm:px-0"
       >
         {scenes.map((s, i) => {
-          const lead = getCharacter(s.characterIds[0]);
+          const lead = characters.find((character) => character.id === s.characterIds[0]);
           return (
             <li
               key={s.id}
@@ -136,7 +153,7 @@ export function SceneCarousel({ scenes }: { scenes: Scene[] }) {
                     <p className="line-clamp-2 text-[15px] font-medium leading-snug">{s.title}</p>
                     <p className="mt-2 flex items-center gap-1.5 text-xs">
                       {lead ? (
-                        <Portrait seed={lead.seed ?? lead.id} hue={lead.hue} className="size-5 rounded-full ring-1 ring-white/40" />
+                        <Portrait seed={lead.seed ?? lead.id} image={lead.image} hue={lead.hue} className="size-5 rounded-full ring-1 ring-white/40" />
                       ) : (
                         <UserPlus className="size-4" aria-hidden="true" />
                       )}

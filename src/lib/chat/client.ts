@@ -128,6 +128,16 @@ export async function streamReply(
     hue,
     seed,
   } = params.character;
+  const messages = params.messages.filter((message) => message.content.trim());
+  const lastUser = messages.findLastIndex((message) => message.role === "user");
+  const history: { role: ChatMessage["role"]; content: string }[] = [];
+  let remaining = 32000;
+  for (const { role, content } of messages.slice(0, Math.max(0, lastUser)).slice(-40).reverse()) {
+    // Bound the serialized request as well as the provider's token budget.
+    if (content.length > remaining) break;
+    history.unshift({ role, content });
+    remaining -= content.length;
+  }
   const result = await api<{ content: string; mode: string }>("/chat/preview", {
     ...mutation(
       {
@@ -142,9 +152,8 @@ export async function streamReply(
           hue,
           seed: seed ?? "preview",
         },
-        text:
-          params.messages.findLast((m) => m.role === "user")?.content ??
-          "Xin chào",
+        text: messages[lastUser]?.content ?? "Xin chào",
+        history,
       },
       requestId(),
     ),

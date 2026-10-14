@@ -197,11 +197,24 @@ async def cancel(ident: str, request: Request, user=Depends(require_user), db=De
 from .schemas import CharacterInput, Input
 from pydantic import Field
 from types import SimpleNamespace
+from typing import Literal
+
+
+class PreviewCharacter(CharacterInput):
+    # Catalog labels are not needed to test a draft before the final tags step.
+    tags: list[str] = Field(default_factory=list, max_length=4)
+
+
+class PreviewMessage(Input):
+    role: Literal["user", "assistant"]
+    # A reply may contain eight 2500-character segments plus display separators.
+    content: str = Field(min_length=1, max_length=21000)
 
 
 class PreviewInput(Input):
-    character: CharacterInput
+    character: PreviewCharacter
     text: str = Field(min_length=1, max_length=4000)
+    history: list[PreviewMessage] = Field(default_factory=list, max_length=40)
 
 
 @router.post("/chat/preview")
@@ -229,7 +242,7 @@ async def preview(
                 prompt,
                 SimpleNamespace(data=body.character.model_dump()),
                 None,
-                [{"role": "user", "content": body.text}],
+                [message.model_dump() for message in body.history] + [{"role": "user", "content": body.text}],
                 plan.quota,
             )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=metadata)

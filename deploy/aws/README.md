@@ -1,6 +1,7 @@
 # Deploy dev to AWS
 
-`.github/workflows/deploy.yml` replaces the DigitalOcean deployment on this branch.
+`.github/workflows/deploy-aws.yml` deploys this branch to AWS. The separate
+`deploy.yml` continues to deploy `main` to Lightsail.
 Pushes to `dev` and manual runs selected on `dev` run the reusable frontend/backend
 checks before building and publishing both images to ECR. The workflow assumes an
 IAM role through GitHub OIDC, runs a single migration task, then deploys the image
@@ -114,8 +115,8 @@ stack outputs, under Settings → Secrets and variables → Actions → Variable
 | `AWS_STACK_NAME` | `lumi-dev`, or the exact stack name you created |
 
 Then push to `dev` or manually dispatch **Deploy dev to AWS** on `dev`. Missing
-variables fail the deployment job with their names and this guide's path. The old
-`DROPLET_HOST`/`DROPLET_SSH_KEY` secrets are not used by this branch. Compose and
+variables fail the deployment job with their names and this guide's path.
+`LIGHTSAIL_HOST`/`LIGHTSAIL_SSH_KEY` are only used by `main`. Compose and
 `deploy/nginx.conf` remain available for the existing DO/local setup; they are not
 used by the AWS workflow.
 

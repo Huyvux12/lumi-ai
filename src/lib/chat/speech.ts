@@ -81,7 +81,10 @@ export class DialoguePlayer {
           await new Promise((r) => setTimeout(r, 50));
         if (ctrl.signal.aborted) break;
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          if (epoch === this.epoch) this.job = null;
+          break;
+        }
         const all = new Uint8Array(carry.length + value.length);
         all.set(carry);
         all.set(value, carry.length);

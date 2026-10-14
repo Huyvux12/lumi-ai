@@ -190,7 +190,7 @@ export function LoginForm({ next }: { next: string }) {
         </Link>
       </p>
       <p className="mt-3 text-center text-[11px] text-fg-3">
-        Bản demo: tài khoản chỉ được lưu trong trình duyệt này.
+        Tài khoản được lưu trên hệ thống và có thể đăng nhập trên thiết bị khác.
       </p>
     </AuthFrame>
   );

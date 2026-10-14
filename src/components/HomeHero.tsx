@@ -48,7 +48,7 @@ export function HomeHero({ faces }: { faces: Character[] }) {
                 }}
               >
                 <div className="size-full animate-[spin_14s_linear_infinite_reverse] overflow-hidden rounded-full ring-2 ring-white/15" style={{ boxShadow: `0 0 24px hsl(${c.hue} 90% 60% / 0.6)` }}>
-                  <Portrait seed={c.seed ?? c.id} hue={c.hue} className="size-full" />
+                  <Portrait seed={c.seed ?? c.id} image={c.image} hue={c.hue} className="size-full" />
                 </div>
               </motion.div>
             );
