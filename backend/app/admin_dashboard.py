@@ -6,6 +6,7 @@ from sqlalchemy import case, func, select
 
 from .models import Audit, Character, Feedback, Order, PaymentEvent, Report, Subscription, Usage, User, now_ms
 from .quotas import VN
+from .provider_config import active_llm, active_stt, cost_totals
 
 DAY_MS = 86400000
 VN_OFFSET_MS = 7 * 3600000
@@ -154,9 +155,12 @@ async def dashboard(db, settings, days):
             usage[key] += value
             if key in day:
                 day[key] = value
-    usage["llm_estimated_usd"] = round(
-        (usage["input_tokens"] * 0.8 + usage["output_tokens"] * 4) / 1000000, 4
-    )
+    costs = await cost_totals(db, start, end)
+    usage["llm_estimated_usd"] = costs["usd"]
+    usage["unpriced_llm_requests"] = costs["unpriced_requests"]
+    usage["legacy_priced_requests"] = costs["legacy_requests"]
+    llm_source = await active_llm(db, settings)
+    stt_source = await active_stt(db, settings)
 
     async def new_users(lower, upper):
         return await db.scalar(
@@ -226,6 +230,8 @@ async def dashboard(db, settings, days):
         "activity": await recent_activity(db),
         "services": {
             "groq": bool(settings.groq_key),
+            "llm": {"name": llm_source.name, "model": llm_source.model, "configured": bool(llm_source.key)},
+            "stt": {"name": "Deepgram Nova-3" if stt_source.id == "deepgram" else "Groq Whisper", "model": stt_source.model, "configured": bool(stt_source.key)},
             "tts": bool(settings.google_key)
             if settings.tts_auth_mode == "api_key"
             else bool(settings.tts_project)

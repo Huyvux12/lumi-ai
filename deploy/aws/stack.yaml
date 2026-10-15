@@ -38,6 +38,11 @@ Parameters:
     Type: String
     Description: Existing JSON secret containing the keys listed in deploy/aws/README.md. No plaintext values.
     AllowedPattern: 'arn:aws:secretsmanager:.*:secret:.*'
+  AIProviderSecretArn:
+    Type: String
+    Default: ''
+    Description: Optional separate JSON secret for Deepgram and compatible LLM credentials; see deploy/aws/README.md.
+    AllowedPattern: '^$|arn:aws:secretsmanager:.*:secret:.*'
   SecretKmsKeyArn:
     Type: String
     Default: ''
@@ -48,6 +53,7 @@ Parameters:
     Description: Exact GitHub OIDC sub claim for this repository's dev branch. No environment is used by the workflow.
     AllowedPattern: 'repo:.+:ref:refs/heads/dev'
 Conditions:
+  HasAIProviderSecret: !Not [!Equals [!Ref AIProviderSecretArn, '']]
   CustomSecretKey: !Not [!Equals [!Ref SecretKmsKeyArn, '']]
   HasReleasedService: !Not [!Equals [!Ref DesiredCountParameter, '0']]
 Resources:
@@ -192,6 +198,12 @@ Resources:
                 Action: secretsmanager:GetSecretValue
                 Resource: !Ref BackendSecretArn
               - !If
+                - HasAIProviderSecret
+                - Effect: Allow
+                  Action: secretsmanager:GetSecretValue
+                  Resource: !Ref AIProviderSecretArn
+                - !Ref AWS::NoValue
+              - !If
                 - CustomSecretKey
                 - Effect: Allow
                   Action: kms:Decrypt
@@ -256,6 +268,10 @@ Resources:
             - {Name: DATA_DIR, Value: /data}
             - {Name: PUBLIC_APP_URL, Value: !Ref PublicAppUrl}
           Secrets:
+            - !If
+              - HasAIProviderSecret
+              - {Name: AI_PROVIDER_CONFIG_JSON, ValueFrom: !Ref AIProviderSecretArn}
+              - !Ref AWS::NoValue
             - {Name: DATABASE_URL, ValueFrom: !Sub '${BackendSecretArn}:DATABASE_URL::'}
             - {Name: REDIS_URL, ValueFrom: !Sub '${BackendSecretArn}:REDIS_URL::'}
             - {Name: MFA_ENCRYPTION_KEY, ValueFrom: !Sub '${BackendSecretArn}:MFA_ENCRYPTION_KEY::'}

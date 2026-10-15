@@ -1,7 +1,7 @@
 import time
 import uuid
 import json
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, event
+from sqlalchemy import Double, BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -31,6 +31,34 @@ class User(Base):
     mfa_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
+class AISettings(Base):
+    __tablename__ = "ai_settings"
+    id: Mapped[str] = mapped_column(String(16), primary_key=True, default="global")
+    llm_id: Mapped[str] = mapped_column(String(36), default="groq")
+    stt_id: Mapped[str] = mapped_column(String(16), default="groq")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
+class LLMProfile(Base):
+    __tablename__ = "llm_profiles"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(80))
+    base_url: Mapped[str] = mapped_column(String(500))
+    model: Mapped[str] = mapped_column(String(160))
+    key_ref: Mapped[str] = mapped_column(String(40))
+    tokenizer: Mapped[str] = mapped_column(String(16), default="o200k_base")
+    json_mode: Mapped[str] = mapped_column(String(16), default="json_object")
+    token_parameter: Mapped[str] = mapped_column(String(24), default="max_tokens")
+    temperature: Mapped[float | None] = mapped_column(Double, nullable=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    input_price: Mapped[float | None] = mapped_column(Double, nullable=True)
+    output_price: Mapped[float | None] = mapped_column(Double, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
 class Session(Base):

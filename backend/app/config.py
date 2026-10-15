@@ -1,6 +1,7 @@
 """Configuration is read once at startup; provider credentials never enter public DTOs."""
 
 import os
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from dotenv import load_dotenv
@@ -10,6 +11,16 @@ load_dotenv(override=False)
 
 def flag(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).lower() in {"1", "true", "yes"}
+
+
+def provider_value(name, default):
+    try:
+        config = json.loads(os.getenv("AI_PROVIDER_CONFIG_JSON", "{}") or "{}")
+        if not isinstance(config, dict):
+            raise ValueError
+        return config.get(name, default)
+    except (ValueError, TypeError):
+        raise RuntimeError("AI_PROVIDER_CONFIG_JSON must be a JSON object") from None
 
 
 @dataclass
@@ -28,6 +39,25 @@ class Settings:
     groq_key: str = field(default_factory=lambda: os.getenv("GROQ_API_KEY", ""))
     groq_model: str = field(default_factory=lambda: os.getenv("GROQ_LLM_MODEL", "qwen/qwen3.8-27b"))
     stt_model: str = field(default_factory=lambda: os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo"))
+    deepgram_key: str = field(
+        repr=False,
+        default_factory=lambda: os.getenv("DEEPGRAM_API_KEY") or provider_value("deepgram_api_key", ""),
+    )
+    llm_keys: dict = field(
+        repr=False,
+        default_factory=lambda: (
+            json.loads(os.environ["LLM_API_KEYS_JSON"])
+            if os.getenv("LLM_API_KEYS_JSON")
+            else provider_value("llm_api_keys", {})
+        ),
+    )
+    llm_allowed_hosts: list[str] = field(
+        default_factory=lambda: (
+            os.environ["LLM_ALLOWED_HOSTS"].split(",")
+            if os.getenv("LLM_ALLOWED_HOSTS")
+            else provider_value("llm_allowed_hosts", ["api.openai.com", "openrouter.ai", "api.groq.com"])
+        )
+    )
     google_key: str = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY", ""))
     tts_model: str = field(default_factory=lambda: os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts"))
     tts_project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", ""))
@@ -51,6 +81,31 @@ class Settings:
         return self.environment == "production"
 
     def validate(self):
+        import re
+
+        if (
+            not isinstance(self.deepgram_key, str)
+            or any(ord(c) < 32 for c in self.deepgram_key)
+            or not isinstance(self.llm_keys, dict)
+            or len(self.llm_keys) > 50
+        ):
+            raise RuntimeError("Invalid AI provider credentials configuration")
+        if any(
+            not isinstance(k, str)
+            or not re.fullmatch(r"[a-zA-Z0-9_-]{1,40}", k)
+            or not isinstance(v, str)
+            or len(v) > 8192
+            or any(ord(c) < 32 for c in v)
+            for k, v in self.llm_keys.items()
+        ):
+            raise RuntimeError("Invalid LLM key references")
+        if (
+            not isinstance(self.llm_allowed_hosts, list)
+            or len(self.llm_allowed_hosts) > 50
+            or any(not isinstance(host, str) for host in self.llm_allowed_hosts)
+        ):
+            raise RuntimeError("LLM_ALLOWED_HOSTS must be a list of trusted public hostnames")
+        self.llm_allowed_hosts = [host.strip().lower() for host in self.llm_allowed_hosts if host.strip()]
         if self.database_url.startswith(("postgres://", "postgresql://")):
             self.database_url = "postgresql+asyncpg://" + self.database_url.split("://", 1)[1]
         if self.production:

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from .catalog_api import own_conversation
 from .models import AudioJob, Character, Message, Usage, Voice, now_ms
 from .prompts import speech_parts
+from .provider_config import active_stt
 from .providers import normalize_audio, transcribe, tts_stream
 from .quotas import entitlement, finish, reserve, usage_lease
 from .schemas import TTSInput
@@ -30,6 +31,26 @@ MIMES = {
 }
 
 
+async def read_recording(file, settings):
+    mime = (file.content_type or "").split(";")[0]
+    if mime not in MIMES:
+        fail("INVALID_AUDIO", "Định dạng ghi âm không hỗ trợ.", 422)
+    content = await file.read(5 * 1024 * 1024 + 1)
+    await file.close()
+    if len(content) > 5 * 1024 * 1024 or not content:
+        fail("INVALID_AUDIO", "Bản ghi âm trống hoặc quá lớn.", 422)
+    fd, name = tempfile.mkstemp(suffix=MIMES[mime], dir=settings.data_dir)
+    source = Path(name)
+    try:
+        # Windows locks an open file against other processes. ffmpeg must see it closed.
+        with os.fdopen(fd, "wb") as temp:
+            temp.write(content)
+        content, duration = await normalize_audio(source, settings.data_dir)
+    finally:
+        source.unlink(missing_ok=True)
+    return content, duration
+
+
 @router.post("/speech/transcriptions")
 async def stt(
     request: Request,
@@ -39,22 +60,8 @@ async def stt(
     db=Depends(db_session),
 ):
     await request.app.state.limiter.check(f"stt:{user.id}", 10)
-    mime = (file.content_type or "").split(";")[0]
-    if mime not in MIMES:
-        fail("INVALID_AUDIO", "Định dạng ghi âm không hỗ trợ.", 422)
-    content = await file.read(5 * 1024 * 1024 + 1)
-    await file.close()
-    if len(content) > 5 * 1024 * 1024 or not content:
-        fail("INVALID_AUDIO", "Bản ghi âm trống hoặc quá lớn.", 422)
-    fd, name = tempfile.mkstemp(suffix=MIMES[mime], dir=request.app.state.settings.data_dir)
-    source = Path(name)
-    try:
-        # Windows locks an open file against other processes. ffmpeg must see it closed.
-        with os.fdopen(fd, "wb") as temp:
-            temp.write(content)
-        content, duration = await normalize_audio(source, request.app.state.settings.data_dir)
-    finally:
-        source.unlink(missing_ok=True)
+    runtime = await active_stt(db, request.app.state.settings)
+    content, duration = await read_recording(file, request.app.state.settings)
     plan, _, _ = await entitlement(db, user.id)
     if duration > plan.quota["recording_seconds"] * 1000:
         fail("INVALID_AUDIO", "Bản ghi âm quá dài.", 422)
@@ -65,7 +72,7 @@ async def stt(
     try:
         async with usage_lease(request.app.state.db, usage.id):
             text, meta = await transcribe(
-                request.app.state.http, request.app.state.settings, content, "recording.wav", "audio/wav"
+                request.app.state.http, request.app.state.settings, content, "recording.wav", "audio/wav", provider=runtime
             )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=meta)
         return {"text": text}

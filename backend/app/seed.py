@@ -1,13 +1,15 @@
 import json
 from pathlib import Path
 from sqlalchemy import select
-from .models import Character, Plan, PlanSettings, Prompt, Scene, Voice
+from .models import AISettings, Character, Plan, PlanSettings, Prompt, Scene, Voice
 from .prompts import BASE_PROMPT, DEFAULT_TAGS
 from .quotas import FREE, PREMIUM
 from .voice_catalog import VOICE_PRESETS
 
 
 async def seed(db):
+    if not await db.get(AISettings, "global"):
+        db.add(AISettings(id="global", llm_id="groq", stt_id="groq", version=1))
     catalog = json.loads((Path(__file__).parent / "seed" / "catalog.json").read_text())
     for data in catalog["characters"]:
         if not await db.get(Character, data["id"]):

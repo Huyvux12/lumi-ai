@@ -8,10 +8,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from .config import Settings
 from .db import Base, database
+from .provider_network import SafeLLMTransport
 from .security import COOKIE, RateLimiter, passwords
 from .seed import seed
 from .maintenance import cleanup_once, recover_interrupted, rebuild_search
-from . import admin_api, auth_api, billing_api, catalog_api, chat_api, feedback_api, speech_api
+from . import admin_api, auth_api, billing_api, catalog_api, chat_api, feedback_api, provider_api, speech_api
 
 log = logging.getLogger("lumi")
 
@@ -27,7 +28,7 @@ class BodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        upload = scope["path"].endswith("/speech/transcriptions") or scope["path"] == "/api/v1/avatars"
+        upload = (scope["path"].endswith("/speech/transcriptions") or ("/admin/providers/stt/" in scope["path"] and scope["path"].endswith("/test"))) or scope["path"] == "/api/v1/avatars"
         maximum = 6 * 1024 * 1024 if upload else 256 * 1024
         content_length = dict(scope.get("headers", [])).get(b"content-length", b"0")
         try:
@@ -94,6 +95,12 @@ def create_app(settings=None, *, transport=None):
             transport=transport,
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=20, keepalive_expiry=120),
         )
+        app.state.compatible_http = httpx.AsyncClient(
+            timeout=httpx.Timeout(90, connect=15),
+            transport=SafeLLMTransport(cfg, transport),
+            trust_env=False,
+            follow_redirects=False,
+        )
         app.state.limiter = RateLimiter(cfg)
         app.state.dummy_password = passwords.hash("lumi-invalid-account")
         task = asyncio.create_task(janitor(app))
@@ -109,6 +116,7 @@ def create_app(settings=None, *, transport=None):
             for active in active_tasks:
                 active.cancel()
             await asyncio.gather(*active_tasks, return_exceptions=True)
+            await app.state.compatible_http.aclose()
             await app.state.http.aclose()
             await app.state.limiter.close()
             await engine.dispose()
@@ -170,7 +178,7 @@ def create_app(settings=None, *, transport=None):
             await db.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    for module in (auth_api, catalog_api, chat_api, billing_api, speech_api, admin_api, feedback_api):
+    for module in (auth_api, catalog_api, chat_api, billing_api, speech_api, admin_api, feedback_api, provider_api):
         app.include_router(module.router, prefix="/api/v1")
     return app
 

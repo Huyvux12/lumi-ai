@@ -24,6 +24,7 @@ from .models import (
 )
 from .prompts import ALL_TAGS
 from .quotas import admin_usage
+from .provider_config import active_llm, cost_totals
 from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
 from .voice_catalog import OFFICIAL_VOICES, voice_view
 from .security import db_session, fail, require_admin, require_owner, require_staff
@@ -60,6 +61,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
         r.provider_usage.get("completion_tokens", 0) for r in rows if r.kind in {"chat", "admin_test"}
     )
     cfg = request.app.state.settings
+    costs = await cost_totals(db, at - 30 * 86400000, at + 1)
     return {
         "users": await db.scalar(select(func.count()).select_from(User)),
         "active_users_7d": await db.scalar(
@@ -75,7 +77,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
         "revenue_vnd": paid,
         "input_tokens_30d": input_tokens,
         "output_tokens_30d": output_tokens,
-        "llm_estimated_usd_30d": round((input_tokens * 0.8 + output_tokens * 4) / 1000000, 4),
+        "llm_estimated_usd_30d": costs["usd"],
         "tts_ms_30d": sum(r.secondary for r in rows if r.kind == "tts" and r.status == "committed"),
         "stt_ms_30d": sum(r.amount for r in rows if r.kind == "stt" and r.status == "committed"),
         "requests_released_30d": sum(r.status == "released" for r in rows),
@@ -561,6 +563,7 @@ async def test_prompt(
     character = await accessible_character(db, body.character_id, user)
     await request.app.state.limiter.check(f"prompt-test:{user.id}", 5, 60)
     usage, _ = await reserve(db, user.id, "admin_test", uid(), 1)
+    runtime = await active_llm(db, request.app.state.settings)
     audit(db, user, "prompt.test", ident, {"character_id": character.id})
     await db.commit()
     try:
@@ -573,6 +576,7 @@ async def test_prompt(
                 None,
                 [{"role": "user", "content": body.text}],
                 PREMIUM,
+                provider=runtime, compatible_client=request.app.state.compatible_http,
             )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=meta)
         return {"segments": [{k: v for k, v in s.items() if k != "tts_text"} for s in segments]}

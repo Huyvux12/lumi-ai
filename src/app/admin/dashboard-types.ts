@@ -4,6 +4,7 @@ export type AdminTab =
   | "orders"
   | "plans"
   | "prompts"
+  | "providers"
   | "voices"
   | "characters"
   | "scenes"
@@ -59,9 +60,13 @@ export type BusinessDashboard = {
     input_tokens: number;
     output_tokens: number;
     llm_estimated_usd: number;
+    unpriced_llm_requests?: number;
+    legacy_priced_requests?: number;
   };
   services: {
     groq: boolean;
+    llm?: { name: string; model: string; configured: boolean };
+    stt?: { name: string; model: string; configured: boolean };
     tts: boolean;
     sepay: boolean;
     sepay_environment: string;

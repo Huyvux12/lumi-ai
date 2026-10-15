@@ -24,6 +24,10 @@ def provider(request):
                 "usage": {"prompt_tokens": 800, "completion_tokens": 70},
             },
         )
+    if request.url.path == "/v1/listen":
+        assert request.url.params["model"] == "nova-3" and request.url.params["language"] == "vi"
+        assert request.content.startswith(b"RIFF")
+        return httpx.Response(200, json={"results": {"channels": [{"alternatives": [{"transcript": "Xin chào từ Nova-3."}]}]}, "metadata": {"duration": 2}})
     if request.url.path.endswith("audio/transcriptions"):
         assert b"language" in request.content and b"\r\nvi\r\n" in request.content
         return httpx.Response(200, json={"text": "Tôi muốn kể một câu chuyện.", "duration": 2.0})

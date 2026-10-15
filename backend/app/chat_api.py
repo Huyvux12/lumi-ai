@@ -7,6 +7,7 @@ from .catalog_api import accessible_character, message_view, own_conversation
 from .models import Message, Prompt, Scene, Usage, now_ms
 from .prompts import assistant_model_content
 from .providers import generate_reply
+from .provider_config import active_llm
 from .quotas import entitlement, finish, reserve, usage_lease
 from .schemas import TurnInput
 from .security import db_session, fail, require_feature_user, require_user
@@ -62,6 +63,7 @@ async def turn(
             select(Prompt).where(Prompt.published.is_(True)).order_by(Prompt.created_at.desc()).limit(1)
         )
     ).scalar_one()
+    runtime = await active_llm(db, settings)
     scene = await db.get(Scene, conversation.scene_id) if conversation.scene_id else None
     retry_message = None
     conditions = [Message.conversation_id == ident, Message.status == "complete"]
@@ -120,7 +122,8 @@ async def turn(
             async def generate():
                 async with usage_lease(factory, usage.id):
                     return await generate_reply(
-                        request.app.state.http, settings, prompt, character, scene, history, plan.quota
+                        request.app.state.http, settings, prompt, character, scene, history, plan.quota,
+                        provider=runtime, compatible_client=request.app.state.compatible_http
                     )
 
             generation = asyncio.create_task(generate())
@@ -233,6 +236,7 @@ async def preview(
     if not fresh:
         fail("KEY_CONFLICT", "Mã yêu cầu đã được sử dụng.", 409)
     prompt = (await db.execute(select(Prompt).where(Prompt.published.is_(True)))).scalar_one()
+    runtime = await active_llm(db, request.app.state.settings)
     await db.commit()
     try:
         async with usage_lease(request.app.state.db, usage.id):
@@ -244,6 +248,7 @@ async def preview(
                 None,
                 [message.model_dump() for message in body.history] + [{"role": "user", "content": body.text}],
                 plan.quota,
+                provider=runtime, compatible_client=request.app.state.compatible_http,
             )
         await finish(request.app.state.db, usage.id, success=True, provider_usage=metadata)
         return {

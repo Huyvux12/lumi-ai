@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
+  Server,
   Sparkles,
   Users,
   X,
@@ -35,6 +36,7 @@ export const adminLabels: Record<AdminTab, string> = {
   reports: "Báo cáo",
   feedback: "Phản hồi người dùng",
   voices: "Giọng đọc",
+  providers: "Nhà cung cấp AI",
   prompts: "System prompt",
   audit: "Nhật ký",
 };
@@ -65,6 +67,7 @@ const groups = [
   {
     label: "AI & VẬN HÀNH",
     items: [
+      { id: "providers", icon: Server },
       { id: "voices", icon: AudioLines },
       { id: "prompts", icon: FileText },
       { id: "audit", icon: Activity },

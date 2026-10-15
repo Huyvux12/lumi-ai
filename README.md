@@ -10,7 +10,7 @@
 - Free và Premium **250.000 VND / một tháng từ khi kích hoạt**, giữ billing anchor cho gia hạn ngày cuối tháng. Gia hạn sớm nối kỳ kế tiếp và không reset quota kỳ hiện tại.
 - Hiển thị QR VietQR trong PersonaX; tự kiểm tra trạng thái đơn mỗi 3 giây. SePay bank webhook xác thực HMAC, chống cấp quyền trùng, kiểm tra tài khoản/số tiền/mã đơn; đối soát qua **SePay API v2**.
 - Quota được reserve → commit/release ở backend và chỉ trả số liệu cho admin. Trang gói mô tả giới hạn bằng lời; không có số đã dùng/còn lại/reset trong public API.
-- Groq STT: ghi âm hoặc tải tệp → giải mã WAV mono 16 kHz có giới hạn → nhận transcript tiếng Việt → người dùng sửa và tự gửi. Không tự gửi lời nói vào chat.
+- STT (Groq Whisper hoặc Deepgram Nova-3, chọn trong quản trị): ghi âm hoặc tải tệp → giải mã WAV mono 16 kHz có giới hạn → nhận transcript tiếng Việt → người dùng sửa và tự gửi. Không tự gửi lời nói vào chat.
 - Gemini 3.8 TTS: LLM chọn emotion, pace, delivery và vocal tags; backend kiểm tra allowlist. Chỉ các segment `dialogue` được đọc. `narration` không đi vào TTS. Stream PCM 16-bit LE, 24 kHz, mono; cache riêng theo người dùng và tin nhắn trong 24 giờ. Đủ 30 giọng studio chính thức và 3 preset phong cách; không có voice clone/design.
 - Admin: tổng quan, người dùng, quota, khóa tài khoản/quyền, đơn/giao dịch/đối soát, phiên bản gói, prompt draft/publish/rollback/test API, preset giọng, duyệt/sửa catalog, bối cảnh, báo cáo và audit. Moderator chỉ quản lý catalog/báo cáo; owner cấp quyền và thay đổi gói.
 
@@ -56,7 +56,7 @@ Tất cả key nằm trong `backend/.env` hoặc secret của máy chủ. Không
 
 | Dịch vụ | Biến cần đặt | Ghi chú |
 | --- | --- | --- |
-| Groq chat/STT | `GROQ_API_KEY` | `GROQ_LLM_MODEL=qwen/qwen3.8-27b`, STT `whisper-large-v3-turbo` |
+| Groq chat/STT mặc định | `GROQ_API_KEY` | `GROQ_LLM_MODEL=qwen/qwen3.8-27b`, STT `whisper-large-v3-turbo` |
 | Gemini TTS bằng API key | `GOOGLE_API_KEY`, `GEMINI_TTS_AUTH_MODE=api_key` | Mặc định `gemini-3.8-flash-tts`, endpoint Vertex projectless theo tài liệu handoff |
 | Gemini TTS bằng ADC | `GEMINI_TTS_AUTH_MODE=adc`, `GOOGLE_CLOUD_PROJECT` | Cấp Application Default Credentials cho service account có quyền gọi model |
 | SePay | `SEPAY_ENV`, `SEPAY_WEBHOOK_SECRET`, `SEPAY_BANK_CODE`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_HOLDER` | `test` và `live` dùng database/order/event riêng theo môi trường; QR test có nhãn không chuyển tiền thật |
@@ -171,6 +171,14 @@ docker compose exec backend python -m app.cli bootstrap-owner --email ban@exampl
 
 Reverse proxy phải giữ cookie, raw webhook body và SSE/audio streaming; tắt buffering cho `/api/v1/conversations/*/turns` và `/api/v1/speech/jobs/*/stream`. Đồng hồ máy chủ cần đồng bộ để HMAC timestamp hoạt động. Chỉ trust forwarded headers từ proxy của bạn; không mở backend trực tiếp ra Internet. Backup database và volume, giữ `MFA_ENCRYPTION_KEY` qua các lần triển khai.
 
+## Nhà cung cấp AI
+
+Admin/owner chọn độc lập nguồn LLM và STT tại **Quản trị → Nhà cung cấp AI**.
+Hỗ trợ Groq, nhiều cấu hình LLM OpenAI-compatible và STT Deepgram Nova-3 tiếng Việt.
+Có nút thử phản hồi/audio trước khi kích hoạt; lựa chọn được lưu trong database.
+Xem [hướng dẫn cấu hình, secrets, giá và ảnh giao diện](docs/ai-providers/README.md).
+Migration `c1d82e4f630a` giữ Groq là nguồn mặc định khi nâng cấp.
+
 ## Dashboard quản trị
 
 Trang **Quản trị → Tổng quan** dùng bộ lọc 7/30/90 ngày, lưu lựa chọn trên URL và
@@ -178,7 +186,7 @@ tổng hợp dữ liệu theo ngày Việt Nam. Doanh thu thuộc môi trường
 tính theo `paid_at` của đơn còn ở trạng thái `paid`, không gồm đơn đã hoàn tiền.
 Người dùng hoạt động có ít nhất một lượt chat/STT/TTS hoàn tất trong kỳ. Premium
 và hàng chờ là trạng thái hiện tại, không đổi theo bộ lọc ngày. Chi phí LLM chỉ là
-ước tính theo giá tham chiếu Qwen 3.8; cờ dịch vụ chỉ phản ánh cấu hình, không phải
+ước tính theo giá từng yêu cầu đã lưu; dữ liệu cũ dùng giá Qwen tham chiếu. Các yêu cầu chưa định giá được đếm riêng; cờ dịch vụ chỉ phản ánh cấu hình, không phải
 kiểm tra kết nối. Moderator có tổng quan riêng cho nội dung/báo cáo; số liệu tài
 chính và sử dụng AI vẫn chỉ dành cho admin/owner. API `/api/v1/admin/dashboard`
 trả tổng hợp theo kỳ; `/api/v1/admin/moderation-dashboard` chỉ trả dữ liệu kiểm duyệt.

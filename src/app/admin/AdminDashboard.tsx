@@ -531,6 +531,12 @@ function Queue({
 }
 
 const actionLabels: Record<string, string> = {
+  "provider.select": "Đổi nguồn AI",
+  "provider.profile.create": "Thêm cấu hình LLM",
+  "provider.profile.update": "Sửa cấu hình LLM",
+  "provider.profile.delete": "Xóa cấu hình LLM",
+  "provider.llm.test": "Thử nguồn LLM",
+  "provider.stt.test": "Thử nguồn STT",
   "feedback.update": "Cập nhật phản hồi",
   "feedback.reply": "Trả lời phản hồi",
   "feedback.note": "Ghi chú phản hồi",
@@ -670,9 +676,13 @@ function Operations({ data }: { data: BusinessDashboard }) {
           </p>
         </div>
         <p className="mt-3 text-[10px] leading-relaxed text-fg-3">
-          Ước tính theo Qwen 3.8, chưa gồm STT/TTS. Chi phí thực tế cần đối
-          chiếu hóa đơn dịch vụ. {number(usage.released_requests)} yêu cầu chưa
-          hoàn tất, gồm hủy, lỗi hoặc hết hạn.
+          Ước tính theo giá được lưu lúc xử lý từng yêu cầu, chưa gồm STT/TTS.{" "}
+          {number(usage.unpriced_llm_requests ?? 0)} yêu cầu chưa định giá.{" "}
+          {(usage.legacy_priced_requests ?? 0) > 0 &&
+            "Dữ liệu cũ dùng giá Qwen 3.8 tham chiếu. "}
+          Chi phí thực tế cần đối chiếu hóa đơn dịch vụ.{" "}
+          {number(usage.released_requests)} yêu cầu chưa hoàn tất, gồm hủy, lỗi
+          hoặc hết hạn.
         </p>
       </section>
       <section className={`${panel} p-5 sm:p-6`}>
@@ -682,7 +692,14 @@ function Operations({ data }: { data: BusinessDashboard }) {
         </div>
         <div className="space-y-3">
           {[
-            ["Groq · Chat & STT", services.groq],
+            [
+              `LLM · ${services.llm?.name ?? "Groq"}`,
+              services.llm?.configured ?? services.groq,
+            ],
+            [
+              `STT · ${services.stt?.name ?? "Groq Whisper"}`,
+              services.stt?.configured ?? services.groq,
+            ],
             ["Gemini · Đọc lời thoại", services.tts],
             ["SePay · Thanh toán", services.sepay],
           ].map(([label, configured]) => (

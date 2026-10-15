@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ProviderPanel, type ProviderData } from "./ProviderPanel";
 import { AdminShell, adminLabels } from "./AdminShell";
 import { AdminDashboard, DashboardSkeleton } from "./AdminDashboard";
 import type { AdminTab, DashboardData, DashboardQueue } from "./dashboard-types";
@@ -364,6 +365,7 @@ function AdminAccount() {
       )}
       {tab === "summary" && !dashboard && busy && <DashboardSkeleton />}
       {dashboard && <AdminDashboard data={dashboard} onNavigate={navigate} />}
+      {tab === "providers" && data !== null && !moderator && <ProviderPanel data={data as ProviderData} onReload={load} />}
       {tab === "feedback" && !moderator && <FeedbackWorkspace admin refreshKey={feedbackRefresh} onChanged={() => { void load(); }} />}
       {tab !== "summary" && data === null && busy && <p role="status" className="py-12 text-center text-sm text-fg-3">Đang tải dữ liệu…</p>}
       {data !== null && tab === "users" && (

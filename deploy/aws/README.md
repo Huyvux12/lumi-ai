@@ -67,6 +67,17 @@ working SMTP. Other backend settings keep the defaults in `backend/.env.example`
 add non-secret environment entries to the base task definition when changing models,
 SMTP port or payment prefix. Do not invent provider credentials to make startup pass.
 
+## Optional AI provider credentials
+
+`AIProviderSecretArn` defaults to empty and preserves existing deployments. Set it
+when enabling Deepgram Nova-3 or OpenAI-compatible LLMs. It points to a separate
+JSON secret injected as `AI_PROVIDER_CONFIG_JSON`; do not add required key references
+to the existing backend secret just to enable this optional feature. See
+[the provider guide](../../docs/ai-providers/README.md#aws-ecs) for its shape,
+allowed endpoints and migration `c1d82e4f630a`. Use the same customer-managed KMS
+key as the backend secret or the AWS-managed key, or separately grant decrypt on
+the provider secret's key. Secret rotation requires a task restart.
+
 ## Bootstrap
 
 Copy `parameters.example.json` outside the repository and replace every placeholder
