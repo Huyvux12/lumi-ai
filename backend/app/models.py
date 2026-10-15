@@ -42,6 +42,14 @@ class AISettings(Base):
     updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
+class ProviderCredential(Base):
+    __tablename__ = "provider_credentials"
+    id: Mapped[str] = mapped_column(String(44), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    suffix: Mapped[str] = mapped_column(String(4))
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
 class LLMProfile(Base):
     __tablename__ = "llm_profiles"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

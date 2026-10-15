@@ -39,9 +39,9 @@ async def lifespan(app):
     async with original_lifespan(app):
         async with app.state.db() as db:
             hashed = passwords.hash("BrowserTest123!")
-            for role in ("moderator", "owner"):
+            for role in ("moderator", "admin", "owner", "key_owner"):
                 db.add(User(email=f"{role}@example.com", username=f"review_{role}", name=f"Review {role.title()}",
-                            password_hash=hashed, role=role))
+                            password_hash=hashed, role="owner" if role == "key_owner" else role))
             await db.commit()
         yield
 

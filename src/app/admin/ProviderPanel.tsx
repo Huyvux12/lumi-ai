@@ -11,6 +11,7 @@ import {
   Square,
 } from "lucide-react";
 import { api, mutation } from "@/lib/api";
+import { ProviderKeyPanel } from "./ProviderKeyPanel";
 
 export type LLMProfile = {
   id: string;
@@ -47,6 +48,7 @@ export type ProviderData = {
   key_refs: { id: string; configured: boolean }[];
   allowed_hosts: string[];
   demo_llm: boolean;
+  can_manage_keys: boolean;
 };
 const panel = "rounded-2xl border border-white/10 bg-surface p-5 sm:p-6";
 const field =
@@ -119,6 +121,9 @@ export function ProviderPanel({
         </p>
       )}
       <SelectionForm key={data.selection.version} data={data} onSaved={saved} />
+      {data.can_manage_keys && (
+        <ProviderKeyPanel key={`keys:${data.selection.version}`} onSaved={saved} onReload={onReload} />
+      )}
       <section className={panel}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 font-semibold">
@@ -184,16 +189,16 @@ export function ProviderPanel({
             Khóa API và endpoint được phép
           </summary>
           <p className="mt-3 leading-6">
-            Khóa API được quản lý ở backend/Secrets Manager. Giao diện chỉ dùng
-            tên tham chiếu, không trả về giá trị khóa. Host được phép:{" "}
+            Owner có thể nhập khóa ở mục Khóa API. Khóa lưu tại admin được ưu tiên
+            hơn khóa server; hệ thống không trả về toàn bộ khóa đã lưu. Host được phép:{" "}
             <span className="break-all">
               {data.allowed_hosts.join(", ") || "Chưa cấu hình"}
             </span>
             .
           </p>
           <p className="mt-2">
-            Cần thêm host hoặc khóa mới: cập nhật cấu hình backend rồi restart
-            dịch vụ.
+            Thêm khóa không cần restart. Nếu cần thêm host mới, cập nhật danh sách
+            host được phép ở backend rồi restart dịch vụ.
           </p>
         </details>
       </section>

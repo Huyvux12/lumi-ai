@@ -25,6 +25,7 @@ from .models import (
 from .prompts import ALL_TAGS
 from .quotas import admin_usage
 from .provider_config import active_llm, cost_totals
+from .provider_credentials import credential_metadata
 from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
 from .voice_catalog import OFFICIAL_VOICES, voice_view
 from .security import db_session, fail, require_admin, require_owner, require_staff
@@ -62,6 +63,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
     )
     cfg = request.app.state.settings
     costs = await cost_totals(db, at - 30 * 86400000, at + 1)
+    keys = await credential_metadata(db, cfg)
     return {
         "users": await db.scalar(select(func.count()).select_from(User)),
         "active_users_7d": await db.scalar(
@@ -82,7 +84,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
         "stt_ms_30d": sum(r.amount for r in rows if r.kind == "stt" and r.status == "committed"),
         "requests_released_30d": sum(r.status == "released" for r in rows),
         "providers": {
-            "groq": bool(cfg.groq_key),
+            "groq": keys["groq"]["configured"],
             "tts": bool(cfg.google_key or cfg.tts_project),
             "sepay": bool(cfg.sepay_secret and cfg.bank_account),
             "sepay_environment": cfg.sepay_environment,

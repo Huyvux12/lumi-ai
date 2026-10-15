@@ -43,6 +43,11 @@ class Settings:
         repr=False,
         default_factory=lambda: os.getenv("DEEPGRAM_API_KEY") or provider_value("deepgram_api_key", ""),
     )
+    credential_key: str = field(
+        repr=False,
+        default_factory=lambda: os.getenv("AI_CREDENTIAL_ENCRYPTION_KEY")
+        or provider_value("credential_encryption_key", ""),
+    )
     llm_keys: dict = field(
         repr=False,
         default_factory=lambda: (
@@ -82,6 +87,14 @@ class Settings:
 
     def validate(self):
         import re
+
+        if self.credential_key:
+            from cryptography.fernet import Fernet
+
+            try:
+                Fernet(self.credential_key.encode())
+            except (ValueError, TypeError, AttributeError):
+                raise RuntimeError("AI_CREDENTIAL_ENCRYPTION_KEY must be a Fernet key") from None
 
         if (
             not isinstance(self.deepgram_key, str)

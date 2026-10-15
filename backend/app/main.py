@@ -12,7 +12,7 @@ from .provider_network import SafeLLMTransport
 from .security import COOKIE, RateLimiter, passwords
 from .seed import seed
 from .maintenance import cleanup_once, recover_interrupted, rebuild_search
-from . import admin_api, auth_api, billing_api, catalog_api, chat_api, feedback_api, provider_api, speech_api
+from . import admin_api, auth_api, billing_api, catalog_api, chat_api, feedback_api, provider_api, provider_key_api, speech_api
 
 log = logging.getLogger("lumi")
 
@@ -178,7 +178,7 @@ def create_app(settings=None, *, transport=None):
             await db.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    for module in (auth_api, catalog_api, chat_api, billing_api, speech_api, admin_api, feedback_api, provider_api):
+    for module in (auth_api, catalog_api, chat_api, billing_api, speech_api, admin_api, feedback_api, provider_api, provider_key_api):
         app.include_router(module.router, prefix="/api/v1")
     return app
 

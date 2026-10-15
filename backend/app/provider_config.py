@@ -1,10 +1,11 @@
 """Persistent choices, immutable request snapshots, and per-request price snapshots."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sqlalchemy import case, func, select
 
 from .models import AISettings, LLMProfile, Usage
+from .provider_credentials import resolve_key
 from .security import fail
 
 
@@ -75,11 +76,12 @@ def profile_runtime(row, settings):
 
 async def resolve_llm(db, settings, ident):
     if ident == "groq":
-        return groq_runtime(settings)
+        return replace(groq_runtime(settings), key=await resolve_key(db, settings, "groq"))
     row = await db.get(LLMProfile, ident)
     if row is None:
         fail("PROVIDER_NOT_FOUND", "Không tìm thấy cấu hình LLM.", 404)
-    return profile_runtime(row, settings)
+    key_id = "groq" if row.key_ref == "groq" else "llm:" + row.key_ref
+    return replace(profile_runtime(row, settings), key=await resolve_key(db, settings, key_id))
 
 
 def resolve_stt(settings, ident):
@@ -97,7 +99,11 @@ async def active_llm(db, settings):
 
 async def active_stt(db, settings):
     state = await db.get(AISettings, "global")
-    return resolve_stt(settings, state.stt_id if state else "groq")
+    return await stt_runtime(db, settings, state.stt_id if state else "groq")
+
+
+async def stt_runtime(db, settings, ident):
+    return replace(resolve_stt(settings, ident), key=await resolve_key(db, settings, ident))
 
 
 def llm_usage(data, runtime):

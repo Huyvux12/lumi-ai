@@ -10,15 +10,58 @@ Moderator không được truy cập.
 
 Chạy `cd backend && uv run --locked python -m alembic upgrade head` trước triển
 khai. Migration `c1d82e4f630a` tạo `ai_settings` và `llm_profiles`, giữ Groq mặc định.
-Seed không ghi đè lựa chọn đã lưu. Mỗi yêu cầu chốt nguồn, model, khóa và giá trước
+Migration `d4e93a7c512b` thêm bảng `provider_credentials` lưu khóa mã hóa.
+Seed không ghi đè lựa chọn hoặc khóa đã lưu. Mỗi yêu cầu chốt nguồn, model, khóa và giá trước
 khi gọi dịch vụ; thay đổi chỉ ảnh hưởng yêu cầu mới. Không tự đổi nguồn khi lỗi.
 Không cho xóa cấu hình LLM đang hoạt động.
 
 ## Khóa và endpoint
 
-Khóa nằm ở backend; database, API quản trị và audit không lưu giá trị khóa.
-Giao diện chỉ dùng tên tham chiếu và trạng thái cấu hình. Trong `.env.backend`
-(Compose) hoặc `backend/.env` (local), cấu hình:
+### Nhập khóa tại admin
+
+Owner mở mục **Khóa API** trong trang Nhà cung cấp AI để nhập/thay Groq,
+Deepgram hoặc thêm tên khóa OpenAI-compatible. Không thêm bước xác minh MFA
+riêng cho tính năng này; phân quyền và chính sách đăng nhập quản trị hiện có
+vẫn áp dụng. Admin thường chỉ chọn/thử provider, không đọc metadata khóa hay
+thêm/thay/xóa khóa. Moderator không truy cập cấu hình provider.
+
+- Ô nhập có dạng mật khẩu, được xóa ngay khi gửi và không được lưu vào browser
+  storage. Không có API đọc lại khóa đầy đủ. Chỉ owner thấy bốn ký tự cuối của
+  khóa nhập qua admin; khóa server chỉ hiện trạng thái đã cấu hình.
+- Khóa admin ưu tiên hơn khóa server cùng tên. Groq dùng chung khóa cho LLM và
+  Whisper; Deepgram có khóa riêng. Tên khóa compatible dùng chung cho những
+  profile tham chiếu tên đó. Danh sách hiển thị cấu hình sử dụng và nguồn đang dùng.
+- Khóa mới có hiệu lực cho yêu cầu mới, không cần restart; yêu cầu đang xử lý
+  giữ snapshot khóa cũ. Lưu khóa không tự chọn provider. Dùng nút thử LLM/STT
+  bên dưới để kiểm tra bằng provider thật, có thể phát sinh phí.
+- Xóa khóa admin có xác nhận rõ việc quay về khóa server. Nếu không có khóa
+  server và nguồn đang hoạt động phụ thuộc khóa đó, hệ thống chặn xóa; đổi
+  nguồn trước hoặc thay khóa. Khóa server không thể bị xóa từ giao diện.
+- Thao tác dùng version chung để ngăn ghi đè thay đổi của owner/admin khác,
+  giới hạn 10 lần ghi/xóa mỗi 5 phút cho mỗi owner. Audit lưu người thực hiện,
+  thời điểm, tên khóa và loại thao tác; không lưu plaintext hay request body.
+- Tối đa 50 khóa compatible lưu tại admin. API key dài 8–8192 ký tự ASCII hiển
+  thị, không có khoảng trắng/control characters. Dữ liệu lỗi không echo khóa.
+
+Backend mã hóa Fernet có xác thực và ràng buộc ciphertext với tên khóa. Mặc định
+khóa mã hóa được dẫn xuất riêng từ master server (`MFA_ENCRYPTION_KEY` nếu có,
+hoặc file private `DATA_DIR/mfa.key` được tự tạo ở môi trường local). Việc này
+không yêu cầu thiết lập MFA trên tài khoản. Các bản mã không thể dùng như secret
+MFA. Có thể đặt master riêng qua `AI_CREDENTIAL_ENCRYPTION_KEY` (Fernet key)
+hoặc `credential_encryption_key` trong `AI_PROVIDER_CONFIG_JSON`; biến riêng
+được ưu tiên. Cùng một master phải được dùng cho mọi backend instance.
+
+**Sao lưu master ngoài database** và giữ volume `DATA_DIR` nếu dùng file local.
+Không đổi master tùy tiện: khóa đã lưu sẽ không giải mã được sau khi đổi/mất
+master; khôi phục master hoặc nhập lại API key qua owner. Lỗi giải mã trả 503,
+không âm thầm dùng khóa server. Không đưa master vào Git, FE hoặc database.
+Migration downgrade xóa kho khóa admin, giữ nguyên profile, lựa chọn và user;
+nên xuất bản sao lưu database/master trước khi downgrade.
+
+### Khóa từ cấu hình server
+
+Các biến cũ vẫn được hỗ trợ. Trong `.env.backend` (Compose) hoặc `backend/.env`
+(local), cấu hình:
 
 ```dotenv
 DEEPGRAM_API_KEY=<deepgram-key>
@@ -26,7 +69,7 @@ LLM_API_KEYS_JSON='{"openai":"<openai-key>","router":"<openrouter-key>"}'
 LLM_ALLOWED_HOSTS=api.openai.com,openrouter.ai,api.groq.com
 ```
 
-Restart backend khi thay khóa/allowlist. Sau đó admin thêm, sửa, thử và chọn các
+Restart backend khi thay khóa server/allowlist. Sau đó admin thêm, sửa, thử và chọn các
 profile mà không cần restart tiếp. Tên khóa `groq` tham chiếu `GROQ_API_KEY`.
 Groq mặc định vẫn dùng `GROQ_LLM_MODEL` và `GROQ_STT_MODEL` như trước.
 
@@ -37,7 +80,8 @@ khi lưu/kích hoạt và khi gọi; chặn mọi kết quả phân giải khôn
 proxy từ biến môi trường để tránh proxy phân giải lại hostname sau kiểm tra.
 Backend cần đường HTTPS outbound trực tiếp tới provider tương ứng.
 
-Không đặt khóa vào `NEXT_PUBLIC_*`, base URL, form quản trị hoặc Git. Có thể lưu
+Chỉ nhập plaintext vào ô API key riêng; không đặt khóa vào `NEXT_PUBLIC_*`,
+base URL, tên profile, lý do thao tác hoặc Git. Có thể lưu
 profile dùng tên khóa đã đăng ký nhưng còn trống; không thể kích hoạt nguồn mới
 thiếu khóa. Tên khóa chưa đăng ký bị từ chối.
 
@@ -93,7 +137,9 @@ provider; cần đối chiếu hóa đơn thực tế.
 ## AWS ECS
 
 `AIProviderSecretArn` mặc định trống, nên deployment cũ không phải thêm key mới
-vào secret cũ. Nếu bật nguồn mới, tạo secret riêng chứa toàn bộ JSON object:
+vào secret cũ. Có thể nhập khóa provider trực tiếp ở admin, dùng master
+đang có của backend. Nếu muốn quản lý khóa qua server hoặc đặt master riêng,
+tạo secret riêng chứa toàn bộ JSON object:
 
 ```json
 {
@@ -107,13 +153,18 @@ vào secret cũ. Nếu bật nguồn mới, tạo secret riêng chứa toàn b�
 đưa toàn bộ secret vào `AI_PROVIDER_CONFIG_JSON` của backend/migration task.
 `DEEPGRAM_API_KEY`, `LLM_API_KEYS_JSON`, `LLM_ALLOWED_HOSTS` nếu có sẽ ưu tiên hơn
 JSON chung. Dùng AWS-managed KMS key hoặc cùng CMK với backend secret; nếu khác,
-cần cấp quyền decrypt tương ứng. Frontend không nhận secret. Rotation cần restart task.
+cần cấp quyền decrypt tương ứng. Frontend không nhận secret môi trường. Rotation khóa môi trường/master cần
+restart task; thay API key trong admin không cần restart. Khi đặt master riêng,
+thêm `credential_encryption_key` vào JSON này và lưu bền vững trước khi nhập khóa
+đầu tiên. Đổi master sau đó cần kế hoạch mã hóa lại hoặc nhập lại các khóa đã lưu.
 
 ## Kiểm thử và ảnh minh họa
 
 Backend tests dùng HTTP mock: auth/payload STT, JSON modes, tokenizer, quota, lỗi,
 rate limit, timeout, đổi nguồn khi đang xử lý, giá lịch sử, DNS pinning, MFA/CSRF
-và pipeline Nova-3 → LLM-compatible → Gemini TTS. Browser tests đi qua API thật
+và pipeline Nova-3 → LLM-compatible → Gemini TTS. Kho khóa được kiểm thử phân
+quyền owner không thêm MFA, ciphertext/suffix/audit, đổi khóa, fallback khi xóa,
+chống ghi đè version, CSRF và lỗi giải mã; migration giữ profile/user qua upgrade. Browser tests đi qua API thật
 của test harness; provider và DNS ngoài được mock. Muốn xác minh chất lượng,
 chi phí/độ trễ thực tế, cấu hình khóa thật rồi dùng các nút thử.
 

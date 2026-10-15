@@ -13,7 +13,8 @@ from sqlalchemy import func, select
 
 from .catalog_api import accessible_character
 from .models import AISettings, Audit, LLMProfile, Prompt, Usage, now_ms, uid
-from .provider_config import key_for, resolve_llm, resolve_stt
+from .provider_config import resolve_llm, stt_runtime
+from .provider_credentials import credential_metadata, resolve_key
 from .provider_network import public_addresses, validate_base_url
 from .providers import generate_reply, transcribe
 from .quotas import LEASE_MS, PREMIUM, VN, finish, lock_user, usage_lease
@@ -58,7 +59,7 @@ class LLMTest(Input):
     text: str = Field(min_length=1, max_length=1000)
 
 
-def profile_view(row, settings):
+def profile_view(row, keys):
     data = {
         column: getattr(row, column)
         for column in (
@@ -77,7 +78,8 @@ def profile_view(row, settings):
             "version",
         )
     }
-    data.update(provider="openai_compatible", configured=bool(key_for(settings, row.key_ref)), editable=True)
+    key_id = "groq" if row.key_ref == "groq" else "llm:" + row.key_ref
+    data.update(provider="openai_compatible", configured=keys.get(key_id, {}).get("configured", False), editable=True)
     return data
 
 
@@ -104,6 +106,11 @@ async def settings_view(request: Request, user=Depends(require_admin), db=Depend
     cfg = request.app.state.settings
     state = await state_for(db)
     profiles = (await db.scalars(select(LLMProfile).order_by(LLMProfile.created_at, LLMProfile.id))).all()
+    keys = await credential_metadata(db, cfg)
+    for profile in profiles:
+        if profile.key_ref != "groq":
+            keys.setdefault("llm:" + profile.key_ref, {"configured": False})
+    owner = user.role == "owner"
     return {
         "selection": {key: getattr(state, key) for key in ("llm_id", "stt_id", "version", "updated_at")},
         "llm_profiles": [
@@ -112,10 +119,10 @@ async def settings_view(request: Request, user=Depends(require_admin), db=Depend
                 "name": "Groq",
                 "provider": "groq",
                 "model": cfg.groq_model,
-                "configured": bool(cfg.groq_key),
+                "configured": keys["groq"]["configured"],
                 "editable": False,
             },
-            *[profile_view(row, cfg) for row in profiles],
+            *[profile_view(row, keys) for row in profiles],
         ],
         "stt_sources": [
             {
@@ -123,33 +130,35 @@ async def settings_view(request: Request, user=Depends(require_admin), db=Depend
                 "name": "Groq Whisper",
                 "model": cfg.stt_model,
                 "language": "vi",
-                "configured": bool(cfg.groq_key),
+                "configured": keys["groq"]["configured"],
             },
             {
                 "id": "deepgram",
                 "name": "Deepgram Nova-3",
                 "model": "nova-3",
                 "language": "vi",
-                "configured": bool(cfg.deepgram_key),
+                "configured": keys["deepgram"]["configured"],
             },
         ],
         "key_refs": [
-            {"id": "groq", "configured": bool(cfg.groq_key)},
+            {"id": "groq", "configured": keys["groq"]["configured"]},
             *[
-                {"id": ref, "configured": bool(value)}
-                for ref, value in sorted(cfg.llm_keys.items())
-                if ref != "groq"
+                {"id": ident[4:], "configured": value["configured"]}
+                for ident, value in sorted(keys.items())
+                if ident.startswith("llm:")
             ],
         ],
         "allowed_hosts": cfg.llm_allowed_hosts,
         "demo_llm": cfg.demo_llm and not cfg.production,
+        "can_manage_keys": owner,
     }
 
 
-async def validate_profile(body, cfg):
+async def validate_profile(body, cfg, db):
     base = validate_base_url(body.base_url, cfg)
-    if body.key_ref != "groq" and body.key_ref not in cfg.llm_keys:
-        fail("INVALID_KEY_REF", "Tên khóa chưa được đăng ký trong cấu hình backend.", 422)
+    keys = await credential_metadata(db, cfg)
+    if body.key_ref != "groq" and "llm:" + body.key_ref not in keys:
+        fail("INVALID_KEY_REF", "Tên khóa chưa được đăng ký. Owner có thể thêm khóa ở mục Khóa API.", 422)
     from urllib.parse import urlsplit
 
     await public_addresses(urlsplit(base).hostname)
@@ -160,7 +169,7 @@ async def validate_profile(body, cfg):
 async def create_profile(
     body: ProfileInput, request: Request, user=Depends(require_admin), db=Depends(db_session)
 ):
-    base = await validate_profile(body, request.app.state.settings)
+    base = await validate_profile(body, request.app.state.settings, db)
     state = await state_for(db, body.version, lock=True)
     if await db.scalar(select(func.count()).select_from(LLMProfile)) >= 50:
         fail("PROFILE_LIMIT", "Tối đa 50 cấu hình LLM. Xóa cấu hình không dùng trước khi thêm.", 422)
@@ -183,7 +192,7 @@ async def create_profile(
 async def edit_profile(
     ident: str, body: ProfileInput, request: Request, user=Depends(require_admin), db=Depends(db_session)
 ):
-    base = await validate_profile(body, request.app.state.settings)
+    base = await validate_profile(body, request.app.state.settings, db)
     state = await state_for(db, body.version, lock=True)
     row = await db.get(LLMProfile, ident)
     if not row:
@@ -191,7 +200,8 @@ async def edit_profile(
     for key, value in body.model_dump(exclude={"reason", "version", "base_url"}).items():
         setattr(row, key, value)
     row.base_url, row.updated_at, row.version = base, now_ms(), row.version + 1
-    if state.llm_id == row.id and not key_for(request.app.state.settings, row.key_ref):
+    key_id = "groq" if row.key_ref == "groq" else "llm:" + row.key_ref
+    if state.llm_id == row.id and not await resolve_key(db, request.app.state.settings, key_id):
         fail("PROVIDER_NOT_CONFIGURED", "Cấu hình đang hoạt động phải có API key.", 422)
     changed(
         db,
@@ -226,7 +236,7 @@ async def select_providers(
     state = await state_for(db, body.version, lock=True)
     cfg = request.app.state.settings
     llm = await resolve_llm(db, cfg, body.llm_id)
-    stt = resolve_stt(cfg, body.stt_id)
+    stt = await stt_runtime(db, cfg, body.stt_id)
     if (state.llm_id != body.llm_id and not llm.key) or (state.stt_id != body.stt_id and not stt.key):
         fail("PROVIDER_NOT_CONFIGURED", "Nguồn được chọn chưa có API key ở backend.", 422)
     if llm.provider == "openai_compatible":
@@ -339,7 +349,7 @@ async def test_stt(
     await request.app.state.limiter.check(f"provider-test:{user.id}", 5, 60)
     await state_for(db, version, lock=True)
     cfg = request.app.state.settings
-    runtime = resolve_stt(cfg, ident)
+    runtime = await stt_runtime(db, cfg, ident)
     if not runtime.key:
         fail("PROVIDER_NOT_CONFIGURED", "Nguồn STT chưa có API key.", 422)
     await db.commit()  # The probe uses the snapshot; release the configuration lock before decoding.

@@ -176,6 +176,8 @@ Reverse proxy phải giữ cookie, raw webhook body và SSE/audio streaming; t�
 Admin/owner chọn độc lập nguồn LLM và STT tại **Quản trị → Nhà cung cấp AI**.
 Hỗ trợ Groq, nhiều cấu hình LLM OpenAI-compatible và STT Deepgram Nova-3 tiếng Việt.
 Có nút thử phản hồi/audio trước khi kích hoạt; lựa chọn được lưu trong database.
+Owner có thể nhập/thay/xóa API key trực tiếp, không thêm xác minh MFA riêng.
+Khóa được mã hóa, chỉ hiện đuôi và có hiệu lực cho yêu cầu mới không cần restart.
 Xem [hướng dẫn cấu hình, secrets, giá và ảnh giao diện](docs/ai-providers/README.md).
 Migration `c1d82e4f630a` giữ Groq là nguồn mặc định khi nâng cấp.
 

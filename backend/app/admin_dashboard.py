@@ -7,6 +7,7 @@ from sqlalchemy import case, func, select
 from .models import Audit, Character, Feedback, Order, PaymentEvent, Report, Subscription, Usage, User, now_ms
 from .quotas import VN
 from .provider_config import active_llm, active_stt, cost_totals
+from .provider_credentials import credential_metadata
 
 DAY_MS = 86400000
 VN_OFFSET_MS = 7 * 3600000
@@ -229,7 +230,7 @@ async def dashboard(db, settings, days):
         "queue": queue,
         "activity": await recent_activity(db),
         "services": {
-            "groq": bool(settings.groq_key),
+            "groq": (await credential_metadata(db, settings))["groq"]["configured"],
             "llm": {"name": llm_source.name, "model": llm_source.model, "configured": bool(llm_source.key)},
             "stt": {"name": "Deepgram Nova-3" if stt_source.id == "deepgram" else "Groq Whisper", "model": stt_source.model, "configured": bool(stt_source.key)},
             "tts": bool(settings.google_key)

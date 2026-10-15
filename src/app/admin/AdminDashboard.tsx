@@ -537,6 +537,8 @@ const actionLabels: Record<string, string> = {
   "provider.profile.delete": "Xóa cấu hình LLM",
   "provider.llm.test": "Thử nguồn LLM",
   "provider.stt.test": "Thử nguồn STT",
+  "provider.key.save": "Lưu khóa API",
+  "provider.key.delete": "Xóa khóa API",
   "feedback.update": "Cập nhật phản hồi",
   "feedback.reply": "Trả lời phản hồi",
   "feedback.note": "Ghi chú phản hồi",
