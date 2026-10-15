@@ -181,7 +181,8 @@ export function Mascot({ mood = "idle", track = false, look = null, className, l
           </g>
         ) : (
           <motion.g
-            style={{ x: px, y: py, originX: "100px", originY: `${EYE_Y}px` }}
+            // Motion uses the SVG fill-box: blink around the eye group's center.
+            style={{ x: px, y: py, originX: 0.5, originY: 0.5 }}
             animate={{ scaleY: blink && !covering ? 0.1 : sad ? 0.8 : 1 }}
             transition={{ duration: 0.08 }}
           >
