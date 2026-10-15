@@ -72,6 +72,8 @@ jobs:
         env: {NEXT_TELEMETRY_DISABLED: "1"}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - name: Install audio tools for STT browser tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - uses: astral-sh/setup-uv@v7
         with: {version: '0.13.0', enable-cache: true, cache-dependency-glob: backend/uv.lock}
       - run: uv sync --locked --extra test --python 3.12 --directory backend
