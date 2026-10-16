@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { Mascot, type MascotMood } from "@/components/Mascot";
 import { Aurora } from "@/components/fx/Aurora";
 import { Logo } from "@/components/AppShell";
+import { SiteLinks } from "@/components/SiteLinks";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -91,6 +92,7 @@ export function AuthFrame({
             className="glass ring-conic mx-auto w-full max-w-md rounded-3xl p-6 sm:p-8"
           >
             {children}
+            <SiteLinks className="mt-6 border-t border-white/10 pt-4" termsInNewTab />
           </motion.div>
         </motion.div>
       </div>

@@ -25,6 +25,7 @@ import {
   resolveCharacter,
   useUserChars,
 } from "@/lib/userCharacters";
+import { SiteLinks } from "./SiteLinks";
 import { Portrait } from "./Portrait";
 import { UserAvatar } from "./UserAvatar";
 import { CursorGlow } from "./fx/CursorGlow";
@@ -190,6 +191,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             nhập / Đăng ký
           </Link>
         ))}
+      <SiteLinks className="justify-start px-3" onNavigate={onNavigate} />
       <p className="px-3 text-[11px] leading-relaxed text-fg-3">
         Nhân vật do AI nhập vai. Hãy nhớ: mọi điều nhân vật nói là do AI tạo ra.
       </p>

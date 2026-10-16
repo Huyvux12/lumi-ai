@@ -13,6 +13,7 @@ import { burst } from "@/lib/confetti";
 import { characters, formatCount, getCharacter, scenes } from "@/lib/data";
 import { sparkle } from "@/lib/sound";
 import { Logo } from "../AppShell";
+import { SiteLinks } from "../SiteLinks";
 import { Mascot, type MascotMood } from "../Mascot";
 import { Portrait } from "../Portrait";
 import { RichText } from "../RichText";
@@ -645,9 +646,12 @@ function FinalCta({ ctaRef, webgl, signedIn }: { ctaRef: React.RefObject<HTMLEle
 function Footer() {
   return (
     <footer className={`relative ${BG} border-t border-white/[0.06] px-4 py-10 sm:px-8`}>
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 text-sm text-fg-3 sm:flex-row">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-5 text-sm text-fg-3 sm:flex-row">
         <Logo />
-        <p className="text-center">Nhân vật anime & game thuộc về tác giả gốc, dùng cho bản demo fan-made — tài khoản lưu ngay trên trình duyệt của bạn.</p>
+        <div className="max-w-xl space-y-3 text-center sm:text-right">
+          <p>Nhân vật và hội thoại do AI tạo ra để nhập vai và giải trí. Quyền đối với nhân vật gốc thuộc chủ sở hữu tương ứng.</p>
+          <SiteLinks className="sm:justify-end" />
+        </div>
       </div>
     </footer>
   );

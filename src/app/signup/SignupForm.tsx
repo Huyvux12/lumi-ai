@@ -637,6 +637,16 @@ export function SignupForm({
           </AnimatePresence>
         </div>
 
+        {step === 2 && (
+          <p className="mt-5 text-sm leading-6 text-fg-2">
+            Khi tạo tài khoản, bạn đồng ý với{" "}
+            <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+              Điều khoản sử dụng<span className="sr-only"> (mở trong tab mới)</span>
+            </Link>{" "}
+            của PersonaX. Vui lòng đọc trước khi tiếp tục.
+          </p>
+        )}
+
         <div className="mt-6 flex gap-3">
           {step > 0 && (
             <motion.button
