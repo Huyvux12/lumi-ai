@@ -2,9 +2,10 @@ import json
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from .billing import apply_payment, authenticate_webhook, create_order, order_view, payment_key, premium_quote
+from .billing import apply_payment, authenticate_webhook, create_order, order_view, payment_key, plan_quote
 from .models import Order, Plan, PlanSettings, Subscription
 from .plan_access import access_view, closed_message
+from .plan_catalog import PAID_CODES, PLANS, plan_label, plan_rank
 from .schemas import OrderInput
 from .quotas import entitlement
 from .security import db_session, fail, require_user
@@ -15,29 +16,32 @@ router = APIRouter()
 @router.get("/plans")
 async def plans(db=Depends(db_session)):
     settings = {row.code: row for row in (await db.execute(select(PlanSettings))).scalars()}
-    rows = (await db.execute(select(Plan).where(Plan.active.is_(True)))).scalars()
-    descriptions = {
-        "free": "Khám phá nhân vật, trò chuyện và dùng thử giọng nói với giới hạn cơ bản.",
-        "premium": "Mở rộng trò chuyện, tạo nhân vật và hội thoại giọng nói với giới hạn cao hơn Free.",
+    rows = {
+        p.code: p
+        for p in (await db.execute(select(Plan).where(Plan.active.is_(True)))).scalars()
+        if p.code in PLANS and p.code in settings
     }
     return [
         {
-            "code": p.code,
-            "price_vnd": p.price_vnd,
-            "duration": "1 tháng" if p.code == "premium" else None,
-            "description": descriptions[p.code],
-            "enabled": settings[p.code].enabled,
-            "discount_percent": settings[p.code].discount_percent,
-            "closed_message": closed_message(p.code) if not settings[p.code].enabled else None,
+            "code": code,
+            "label": tier["label"],
+            "rank": plan_rank(code),
+            "price_vnd": rows[code].price_vnd,
+            "duration": "1 tháng" if code in PAID_CODES else None,
+            "description": tier["description"],
+            "enabled": settings[code].enabled,
+            "discount_percent": settings[code].discount_percent,
+            "closed_message": closed_message(code) if not settings[code].enabled else None,
         }
-        for p in rows
+        for code, tier in PLANS.items()
+        if code in rows
     ]
 
 
 @router.post("/billing/quote")
 async def quote(body: OrderInput, user=Depends(require_user), db=Depends(db_session)):
-    _, result = await premium_quote(db, body.promo_code)
-    return result
+    _, upgrade, result = await plan_quote(db, user, body.plan, body.promo_code)
+    return {"plan": body.plan, "upgrade": upgrade, **result}
 
 
 @router.post("/billing/orders")
@@ -49,11 +53,12 @@ async def order(
     body: OrderInput | None = None,
 ):
     await request.app.state.limiter.check(f"order:{user.id}", 10)
+    body = body or OrderInput()
     row = await create_order(
-        db, request.app.state.settings, user, idempotency_key, body.promo_code if body else None
+        db, request.app.state.settings, user, idempotency_key, body.promo_code, body.plan
     )
     await db.commit()
-    return order_view(row, request.app.state.settings)
+    return order_view(row, request.app.state.settings, body.plan)
 
 
 @router.get("/billing/orders/{ident}")
@@ -61,17 +66,20 @@ async def get_order(ident: str, request: Request, user=Depends(require_user), db
     row = await db.get(Order, ident)
     if not row or row.user_id != user.id:
         fail("NOT_FOUND", "Không tìm thấy đơn thanh toán.", 404)
-    return order_view(row, request.app.state.settings)
+    plan = await db.get(Plan, row.plan_id)
+    return order_view(row, request.app.state.settings, plan.code if plan else None)
 
 
 @router.get("/billing/history")
 async def history(request: Request, user=Depends(require_user), db=Depends(db_session)):
-    rows = (
-        await db.execute(
-            select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc()).limit(100)
-        )
-    ).scalars()
-    return [order_view(row, request.app.state.settings) for row in rows]
+    rows = await db.execute(
+        select(Order, Plan.code)
+        .join(Plan, Plan.id == Order.plan_id)
+        .where(Order.user_id == user.id)
+        .order_by(Order.created_at.desc())
+        .limit(100)
+    )
+    return [order_view(row, request.app.state.settings, code) for row, code in rows]
 
 
 @router.get("/billing/subscription")
@@ -87,6 +95,7 @@ async def subscription(user=Depends(require_user), db=Depends(db_session)):
     ).scalar_one_or_none()
     return {
         "plan": plan.code if plan else None,
+        "plan_label": plan_label(plan.code) if plan else None,
         **await access_view(db, user, plan),
         "ends_at": sub.ends_at if sub else None,
         "paid_until": last.ends_at if last else None,

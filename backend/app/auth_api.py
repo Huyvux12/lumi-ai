@@ -7,7 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from .models import AuthToken, Session, User, now_ms
 from .quotas import entitlement
-from .plan_access import access_view, require_plan_open
+from .plan_access import access_view, plan_open
 from .schemas import Input, Login, ProfilePatch, Register
 from .security import (
     COOKIE,
@@ -50,7 +50,8 @@ async def public_user(db, user):
 @router.post("/auth/register")
 async def register(body: Register, request: Request, response: Response, db=Depends(db_session)):
     await request.app.state.limiter.check(f"signup:{request.client.host}", 5, 3600)
-    await require_plan_open(db, body.plan)
+    # Sign-up never fails for capacity: while Free is closed the account joins the waitlist.
+    waitlisted = not await plan_open(db, "free")
     user = User(
         email=str(body.email).lower(),
         username=body.username,
@@ -58,7 +59,7 @@ async def register(body: Register, request: Request, response: Response, db=Depe
         password_hash=await password_work(request, passwords.hash, body.password),
         hue=body.hue,
         interests=body.interests,
-        signup_plan=body.plan,
+        waitlisted=waitlisted,
     )
     db.add(user)
     try:

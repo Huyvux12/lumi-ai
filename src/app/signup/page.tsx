@@ -7,11 +7,6 @@ export const metadata: Metadata = { title: "Đăng ký — PersonaX" };
 export default async function SignupPage({
   searchParams,
 }: PageProps<"/signup">) {
-  const { next, plan } = await searchParams;
-  return (
-    <SignupForm
-      next={safeNext(next)}
-      preferredPlan={plan === "premium" ? "premium" : "free"}
-    />
-  );
+  const { next } = await searchParams;
+  return <SignupForm next={safeNext(next)} />;
 }

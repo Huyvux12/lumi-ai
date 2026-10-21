@@ -29,7 +29,7 @@ async def test_plan_snapshot_prompt_publish_and_audit(env):
     assert response.status_code == 200, response.text
     await webhook(client, cfg, payload(purchased))
     usage = (await client.get("/api/v1/admin/users/" + user["id"] + "/usage")).json()
-    assert usage["limits"]["chat_period"] == 800
+    assert usage["limits"]["chat_period"] == 8000
     response = await client.post(
         "/api/v1/admin/prompts",
         json={

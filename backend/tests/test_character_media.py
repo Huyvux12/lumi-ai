@@ -3,7 +3,7 @@ import json
 
 import httpx
 import pytest
-from app.models import Character, CharacterAvatar
+from app.models import Character, CharacterAvatar, User
 from conftest import REPLY, register
 from PIL import Image
 from sqlalchemy import func, select
@@ -250,6 +250,11 @@ async def test_avatar_upload_reuses_existing_auth_and_plan_permissions(env):
     async with app.state.db() as db:
         free = await db.get(PlanSettings, "free")
         free.enabled = False
+        await db.commit()
+    # Closing Free only holds waitlisted sign-ups; existing accounts keep uploading.
+    assert (await upload(client)).status_code == 200
+    async with app.state.db() as db:
+        (await db.scalar(select(User))).waitlisted = True
         await db.commit()
     response = await upload(client)
     assert response.status_code == 403 and response.json()["code"] == "PLAN_CLOSED"

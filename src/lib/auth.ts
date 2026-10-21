@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api, mutation } from "./api";
+import type { PlanCode } from "./plans";
 export type User = {
   id: string;
   email: string;
@@ -12,11 +13,13 @@ export type User = {
   role: "user" | "moderator" | "admin" | "owner";
   email_verified: boolean;
   mfa_enabled: boolean;
-  plan: "free" | "premium" | null;
-  signup_plan: "free" | "premium";
+  plan: PlanCode | null;
+  signup_plan: PlanCode;
   has_plan: boolean;
   plan_enabled: boolean;
   can_use_features: boolean;
+  /** Signed up while Free was closed; features open when Free reopens or on payment. */
+  waitlisted: boolean;
   plan_message: string | null;
   subscription_ends_at: number | null;
 };
@@ -111,7 +114,6 @@ export async function signUp(input: {
   username: string;
   hue: number;
   interests: string[];
-  plan: "free" | "premium";
 }) {
   const user = await api<User>(
     "/auth/register",

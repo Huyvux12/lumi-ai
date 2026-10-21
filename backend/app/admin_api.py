@@ -23,6 +23,7 @@ from .models import (
     now_ms,
 )
 from .prompts import ALL_TAGS
+from .plan_catalog import PAID_CODES, PLANS, plan_label, plan_rank
 from .quotas import admin_usage
 from .provider_config import active_llm, cost_totals
 from .provider_credentials import credential_metadata
@@ -220,11 +221,14 @@ async def reconcile(
 @router.get("/plans")
 async def plans(user=Depends(require_admin), db=Depends(db_session)):
     settings = {row.code: row for row in (await db.execute(select(PlanSettings))).scalars()}
-    rows = (await db.execute(select(Plan).order_by(Plan.created_at.desc()))).scalars()
+    rows = (await db.execute(select(Plan).order_by(Plan.created_at.desc()))).scalars().all()
+    rows = sorted((p for p in rows if p.code in settings), key=lambda p: plan_rank(p.code))
     return [
         {
             "id": p.id,
             "code": p.code,
+            "label": plan_label(p.code),
+            "paid": p.code in PAID_CODES,
             "price_vnd": p.price_vnd,
             "quota": p.quota,
             "active": p.active,
@@ -242,8 +246,8 @@ async def update_availability(
     code: str, body: PlanAvailabilityPatch, user=Depends(require_admin), db=Depends(db_session)
 ):
     settings = await db.get(PlanSettings, code, with_for_update=True)
-    if not settings or (code == "free" and (body.discount_percent or body.promo_codes)):
-        fail("INVALID_PLAN", "Chỉ áp dụng mã giảm giá cho Premium.", 422)
+    if not settings or (code not in PAID_CODES and (body.discount_percent or body.promo_codes)):
+        fail("INVALID_PLAN", "Chỉ áp dụng mã giảm giá cho gói trả phí.", 422)
     before = {key: getattr(settings, key) for key in ("enabled", "discount_percent", "promo_codes")}
     changes = body.model_dump(exclude={"reason"})
     for key, value in changes.items():
@@ -255,7 +259,7 @@ async def update_availability(
 
 @router.post("/plans/{code}")
 async def update_plan(code: str, body: PlanPatch, user=Depends(require_owner), db=Depends(db_session)):
-    if code not in {"free", "premium"} or (code == "free" and body.price_vnd != 0):
+    if code not in PLANS or (code not in PAID_CODES) != (body.price_vnd == 0):
         fail("INVALID_PLAN", "Gói hoặc giá không hợp lệ.")
     old = (
         (await db.execute(select(Plan).where(Plan.code == code, Plan.active.is_(True)).with_for_update()))
@@ -542,7 +546,7 @@ async def record_refund(ident: str, body: Reason, actor=Depends(require_owner), 
     await db.commit()
     return {
         "ok": True,
-        "message": "Đã ghi nhận hoàn tiền thực hiện bên ngoài và thu hồi kỳ Premium tương ứng.",
+        "message": "Đã ghi nhận hoàn tiền thực hiện bên ngoài và thu hồi kỳ gói tương ứng.",
     }
 
 

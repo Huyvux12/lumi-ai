@@ -1,7 +1,7 @@
 import time
 import uuid
 import json
-from sqlalchemy import Double, BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, event
+from sqlalchemy import Double, BigInteger, Boolean, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, event, false
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -25,6 +25,7 @@ class User(Base):
     hue: Mapped[int] = mapped_column(Integer, default=265)
     interests: Mapped[list] = mapped_column(JSON, default=list)
     signup_plan: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
+    waitlisted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     role: Mapped[str] = mapped_column(String(16), default="user")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -170,6 +171,7 @@ class Order(Base):
     list_price_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     discount_percent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     promo_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    credit_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     environment: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)

@@ -7,7 +7,7 @@
 - Đăng ký/đăng nhập với Argon2, session cookie HttpOnly, xác minh email, đặt lại mật khẩu, MFA TOTP và thu hồi phiên.
 - Nhân vật riêng tư/công khai chờ duyệt; catalog seed giữ URL cũ của 26 nhân vật và 7 bối cảnh. Giao diện lấy hồ sơ và số hội thoại từ API.
 - Lịch sử hội thoại theo tài khoản, phân trang, cuộc trò chuyện mới, tạo lại phản hồi, hủy và idempotency. API SSE phát các sự kiện có cấu trúc sau khi LLM trả JSON hợp lệ.
-- Free và Premium **250.000 VND / một tháng từ khi kích hoạt**, giữ billing anchor cho gia hạn ngày cuối tháng. Gia hạn sớm nối kỳ kế tiếp và không reset quota kỳ hiện tại.
+- Bốn gói: Free, **Basic 50.000 VND**, **Plus 99.000 VND** và **Premium 250.000 VND**, mỗi gói trả phí một tháng từ khi kích hoạt, giữ billing anchor cho gia hạn ngày cuối tháng. Gia hạn sớm hoặc mua gói bằng/thấp hơn nối kỳ kế tiếp và không reset quota kỳ hiện tại; nâng lên gói cao hơn có hiệu lực ngay và trừ phần tiền chưa dùng.
 - Hiển thị QR VietQR trong PersonaX; tự kiểm tra trạng thái đơn mỗi 3 giây. SePay bank webhook xác thực HMAC, chống cấp quyền trùng, kiểm tra tài khoản/số tiền/mã đơn; đối soát qua **SePay API v2**.
 - Quota được reserve → commit/release ở backend và chỉ trả số liệu cho admin. Trang gói mô tả giới hạn bằng lời; không có số đã dùng/còn lại/reset trong public API.
 - STT (Groq Whisper hoặc Deepgram Nova-3, chọn trong quản trị): ghi âm hoặc tải tệp → giải mã WAV mono 16 kHz có giới hạn → nhận transcript tiếng Việt → người dùng sửa và tự gửi. Không tự gửi lời nói vào chat.
@@ -124,27 +124,36 @@ Migration `82c7f03d9a16` tạo bảng `character_avatars`; cần nâng cấp dat
 khi chạy bản này. Avatar được backup cùng database; ảnh đã tải lên nhưng chưa gắn
 vào nhân vật vẫn riêng tư và có thể được dùng lại bởi tài khoản tải lên.
 
-Gói sử dụng thuộc tài khoản đã đăng ký. Free được cấp khi đăng ký Free; tài khoản
-đăng ký Premium chỉ mở chat/tạo nhân vật/preview/STT/TTS sau khi thanh toán được xác
-nhận (hoặc đổi mã giảm 100%). Gói Premium đã hết hạn của tài khoản đăng ký Premium
-không tự chuyển thành Free. Tài khoản Free nâng cấp Premium vẫn có thể trở lại Free
-khi kỳ Premium hết hạn, nếu Free đang mở.
+Mọi tài khoản mới bắt đầu ở Free; trang đăng ký không còn chọn gói. Gói trả phí được
+mua ở `/billing`. Khi kỳ trả phí hết hạn, tài khoản trở về Free.
 
-Trong **Quản trị → Gói & giới hạn**, admin/owner mở hoặc đóng Free/Premium, đặt phần
-trăm giảm Premium từ 0–100 và danh sách mã được áp dụng. Cấu hình được lưu ở server,
-ghi audit và không bị seed/reset khi khởi động. Đóng gói chặn cả đăng ký mới lẫn yêu
-cầu dùng tính năng mới của tài khoản đang dùng gói đó, kể cả retry/cached audio;
-không chặn đăng nhập, quản trị, quản lý tài khoản, lịch sử hay thanh toán nâng cấp.
-Free vẫn hiện trên signup khi đóng, bị vô hiệu hóa và hiển thị đúng:
-**hiện sever quá tải vui lòng đăng kí gói cao cấp hơn**. Premium còn mở được chọn để
-đăng ký; nếu cả hai đóng, phải chờ mở lại.
+Quota mặc định (`backend/app/plan_catalog.py`) được tính theo chi phí khi dùng hết:
+LLM 280 ₫ / 1 triệu token (vào và ra), TTS 695 ₫ / 1.000 ký tự, không tính STT.
 
-Mã Premium không phân biệt hoa/thường, có 3–32 chữ/số/`_`/`-`, được nhập ở signup
-hoặc trang thanh toán. Chỉ mã trong danh sách hiện tại mới áp dụng phần trăm giảm;
+| Gói | Giá | Chat / ngày · kỳ | TTS ký tự / kỳ | Token vào · ra / lượt | Chi phí tối đa |
+|---|---|---|---|---|---|
+| Free | 0 ₫ | 20 · 250 | 1.600 | 2.048 · 400 | ~1.300 ₫ |
+| Basic | 50.000 ₫ | 60 · 1.500 | 15.000 | 4.096 · 500 | ~12.400 ₫ (biên ~75%) |
+| Plus | 99.000 ₫ | 120 · 3.000 | 30.000 | 6.144 · 600 | ~26.500 ₫ (biên ~73%) |
+| Premium | 250.000 ₫ | 300 · 8.000 | 75.000 | 8.192 · 800 | ~72.300 ₫ (biên ~71%) |
+
+Trong **Quản trị → Gói & giới hạn**, admin/owner mở hoặc đóng từng gói, đặt phần
+trăm giảm 0–100 và danh sách mã cho từng gói trả phí. Cấu hình được lưu ở server,
+ghi audit và không bị seed/reset khi khởi động. Đóng gói **chỉ chặn người mới**:
+
+- Đóng Free (server quá tải): đăng ký vẫn thành công nhưng tài khoản mới vào hàng chờ
+  và chỉ dùng được tính năng khi Free mở lại hoặc khi mua gói trả phí. Tài khoản Free
+  có từ trước không bị ảnh hưởng.
+- Đóng gói trả phí: chặn báo giá và đơn mua mới của gói đó; người đang có kỳ còn hạn
+  vẫn dùng bình thường.
+
+Mã giảm giá không phân biệt hoa/thường, có 3–32 chữ/số/`_`/`-`, được nhập trên trang
+thanh toán. Chỉ mã trong danh sách hiện tại mới áp dụng phần trăm giảm;
 không có mã thì trả giá niêm yết. Server tính và lưu giá niêm yết, phần trăm, mã và
 số tiền chính xác vào đơn. Điều chỉnh mã/phần trăm không đổi giá đơn đã tạo; webhook
 phải khớp số tiền đã lưu. Mã có thể dùng lại cho đơn mới khi còn trong danh sách.
-Giảm 100% cấp một kỳ Premium qua đơn 0 ₫, không tạo giao dịch ngân hàng giả.
+Giảm 100% (hoặc phần trừ khi nâng cấp đủ trả giá gói) cấp một kỳ qua đơn 0 ₫, không
+tạo giao dịch ngân hàng giả.
 
 Trước khi chạy bản này trên database hiện có, chạy
 `python -m alembic -c backend/alembic.ini upgrade head`. Migration giữ tài khoản cũ

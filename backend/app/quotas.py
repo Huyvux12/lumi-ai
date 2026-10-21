@@ -4,7 +4,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from sqlalchemy import select, update
 from .models import Plan, Subscription, Usage, User, now_ms
-from .plan_access import PLAN_REQUIRED_MESSAGE, require_plan_open
+from .plan_access import WAITLIST_MESSAGE, waiting
+from .plan_catalog import FREE, PREMIUM  # noqa: F401  re-exported for existing imports
 from .security import fail, lock_user
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -65,30 +66,6 @@ async def usage_lease(factory, usage_id):
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
-FREE = dict(
-    chat_day=20,
-    chat_period=200,
-    characters=3,
-    tts_chars=2000,
-    tts_ms=120000,
-    stt_ms=300000,
-    recording_seconds=60,
-    input_chars=2000,
-    input_tokens=2048,
-    output_tokens=400,
-)
-PREMIUM = dict(
-    chat_day=50,
-    chat_period=800,
-    characters=20,
-    tts_chars=50000,
-    tts_ms=2700000,
-    stt_ms=7200000,
-    recording_seconds=120,
-    input_chars=4000,
-    input_tokens=4096,
-    output_tokens=600,
-)
 
 
 async def active_plan(db, code):
@@ -122,9 +99,8 @@ async def entitlement(db, user_id, at=None):
     ).scalar_one_or_none()
     if sub:
         plan = await db.get(Plan, sub.plan_id)
-        return plan, f"premium:{sub.id}", sub
-    if user.signup_plan == "premium":
-        return None, "premium:pending", None
+        return plan, f"{plan.code}:{sub.id}", sub
+    # Legacy "premium" sign-ups without a paid period fall back to Free like everyone else.
     plan = await active_plan(db, "free")
     month = datetime.fromtimestamp(at / 1000, VN).strftime("%Y-%m")
     return plan, f"free:{month}", None
@@ -133,9 +109,11 @@ async def entitlement(db, user_id, at=None):
 async def feature_entitlement(db, user_id):
     plan, period, sub = await entitlement(db, user_id)
     user = await db.get(User, user_id)
-    await require_plan_open(db, plan.code if plan else user.signup_plan)
-    if not plan:
-        fail("PLAN_REQUIRED", PLAN_REQUIRED_MESSAGE, 403)
+    if await waiting(db, user, plan):
+        fail("PLAN_CLOSED", WAITLIST_MESSAGE, 403)
+    if user.waitlisted and not sub:
+        # Free reopened: release the hold for good.
+        user.waitlisted = False
     return plan, period, sub
 
 

@@ -4,7 +4,7 @@ const account = {
   id: "audit-account", email: "audit@example.com", name: "Audit", username: "audit", bio: "", hue: 265,
   interests: [], createdAt: 1, role: "user", email_verified: true, mfa_enabled: false,
   plan: "free", signup_plan: "free", has_plan: true, plan_enabled: true, can_use_features: true,
-  plan_message: null, subscription_ends_at: null,
+  plan_message: null, waitlisted: false, subscription_ends_at: null,
 };
 
 async function loginOwner(page: Page) {

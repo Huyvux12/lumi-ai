@@ -8,7 +8,8 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
-from .models import Order, PaymentEvent, Subscription, now_ms
+from .models import Order, PaymentEvent, Plan, Subscription, now_ms
+from .plan_catalog import plan_label, plan_rank
 from .quotas import VN, active_plan
 from .plan_access import require_plan_open
 from .security import fail, lock_user
@@ -47,9 +48,12 @@ def sepay_transaction_payload(transaction):
     }
 
 
-def order_view(order, settings):
+def order_view(order, settings, code=None):
     return {
         "id": order.id,
+        "plan": code,
+        "plan_label": plan_label(code) if code else None,
+        "credit_vnd": order.credit_vnd,
         "invoice": order.invoice,
         "amount_vnd": order.amount_vnd,
         "list_price_vnd": order.list_price_vnd,
@@ -67,31 +71,77 @@ def order_view(order, settings):
     }
 
 
-async def premium_quote(db, promo_code=None):
-    controls = await require_plan_open(db, "premium")
-    plan = await active_plan(db, "premium")
-    code = promo_code.strip().upper() if promo_code else None
-    if code and code not in controls.promo_codes:
+async def open_periods(db, user_id, at):
+    """Active periods not yet ended, the running one first and queued ones after."""
+    return (
+        (
+            await db.execute(
+                select(Subscription)
+                .where(
+                    Subscription.user_id == user_id,
+                    Subscription.active.is_(True),
+                    Subscription.ends_at > at,
+                )
+                .order_by(Subscription.starts_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def upgrade_credit(db, user_id, code, at):
+    """Return (is_upgrade, credit) for buying `code` now.
+
+    Moving to a higher tier starts immediately; the unused share of the running
+    period and every queued period is credited against the new order.
+    """
+    periods = await open_periods(db, user_id, at)
+    running = next((p for p in periods if p.starts_at <= at), None)
+    if not running or plan_rank(code) <= plan_rank((await db.get(Plan, running.plan_id)).code):
+        return False, 0
+    credit = 0
+    for period in periods:
+        order = await db.get(Order, period.order_id)
+        value = order.amount_vnd + order.credit_vnd if order else 0
+        if period.starts_at <= at:
+            value = value * (period.ends_at - at) // max(1, period.ends_at - period.starts_at)
+        credit += value
+    return True, credit
+
+
+async def plan_quote(db, user, code, promo_code=None):
+    controls = await require_plan_open(db, code)
+    plan = await active_plan(db, code)
+    promo = promo_code.strip().upper() if promo_code else None
+    if promo and promo not in controls.promo_codes:
         fail("INVALID_PROMO_CODE", "Mã giảm giá không hợp lệ hoặc đã hết hiệu lực.", 422)
-    percent = controls.discount_percent if code else 0
-    return plan, {
+    percent = controls.discount_percent if promo else 0
+    price = (plan.price_vnd * (100 - percent) + 50) // 100
+    upgrade, credit = await upgrade_credit(db, user.id, code, now_ms()) if user else (False, 0)
+    # Credit is rounded down to whole thousands so the transfer amount stays readable.
+    credit = min(credit // 1000 * 1000, price)
+    return plan, upgrade, {
         "list_price_vnd": plan.price_vnd,
         "discount_percent": percent,
-        "promo_code": code,
-        "amount_vnd": (plan.price_vnd * (100 - percent) + 50) // 100,
+        "promo_code": promo,
+        "credit_vnd": credit,
+        "amount_vnd": price - credit,
     }
 
 
-async def create_order(db, settings, user, key, promo_code=None):
-    await require_plan_open(db, "premium")
+async def create_order(db, settings, user, key, promo_code=None, code="premium"):
+    await require_plan_open(db, code)
     await lock_user(db, user.id)
     request_key = f"{user.id}:{key}"
     existing = (await db.execute(select(Order).where(Order.request_key == request_key))).scalar_one_or_none()
     if existing:
         if existing.promo_code != (promo_code.strip().upper() if promo_code else None):
             fail("KEY_CONFLICT", "Mã yêu cầu đã dùng với mã giảm giá khác.", 409)
+        if (await db.get(Plan, existing.plan_id)).code != code:
+            fail("KEY_CONFLICT", "Mã yêu cầu đã dùng cho gói khác.", 409)
         return existing
-    plan, quote = await premium_quote(db, promo_code)
+    plan, _, quote = await plan_quote(db, user, code, promo_code)
     if quote["amount_vnd"] and not all(
         (settings.bank_code, settings.bank_account, settings.bank_holder, settings.sepay_secret)
     ):
@@ -113,20 +163,23 @@ async def create_order(db, settings, user, key, promo_code=None):
 
 
 async def activate_order(db, order):
-    """Grant the snapshotted period, including a legitimate 100% promo redemption."""
-    last = (
-        await db.execute(
-            select(Subscription)
-            .where(
-                Subscription.user_id == order.user_id,
-                Subscription.active.is_(True),
-                Subscription.ends_at > now_ms(),
-            )
-            .order_by(Subscription.ends_at.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
+    """Grant the snapshotted period, including a legitimate 100% promo redemption.
+
+    A same or lower tier queues after the last paid period. A higher tier replaces
+    the running and queued periods from now; their value was credited on the order.
+    """
     at = now_ms()
+    code = (await db.get(Plan, order.plan_id)).code
+    periods = await open_periods(db, order.user_id, at)
+    running = next((p for p in periods if p.starts_at <= at), None)
+    last = max(periods, key=lambda p: p.ends_at) if periods else None
+    if running and plan_rank(code) > plan_rank((await db.get(Plan, running.plan_id)).code):
+        for period in periods:
+            if period.starts_at <= at:
+                period.ends_at = at
+            else:
+                period.active = False
+        last = None
     anchor = last.anchor_at if last else at
     index = last.period_index + 1 if last else 1
     db.add(

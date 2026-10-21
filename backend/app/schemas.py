@@ -13,7 +13,6 @@ class Register(Input):
     username: str = Field(pattern=r"^[a-z0-9_.]{3,20}$")
     hue: int = Field(default=265, ge=0, le=360)
     interests: list[str] = Field(default_factory=list, max_length=10)
-    plan: Literal["free", "premium"] = "free"
 
     @field_validator("password")
     @classmethod
@@ -133,6 +132,7 @@ class PlanAvailabilityPatch(Reason):
 
 
 class OrderInput(Input):
+    plan: Literal["basic", "plus", "premium"] = "premium"
     promo_code: str | None = Field(default=None, max_length=32)
 
     @field_validator("promo_code")

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 from conftest import register
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import Settings
 from app.db import database
@@ -40,13 +40,13 @@ async def test_feedback_upgrade_serves_api_without_create_all_and_preserves_exis
     migrate("upgrade", "3e9b61a20f47")
     engine, factory = database(url)
     async with factory() as db:
-        db.add(
-            User(
-                id="legacy-user",
-                username="legacy",
-                email="legacy@example.com",
-                name="Legacy User",
-                password_hash="unused",
+        # Raw SQL: the ORM model has columns this older schema does not.
+        await db.execute(
+            text(
+                "INSERT INTO users (id, username, email, name, password_hash, bio, hue, interests,"
+                " signup_plan, role, active, email_verified, mfa_enabled, created_at) VALUES"
+                " ('legacy-user', 'legacy', 'legacy@example.com', 'Legacy User', 'unused', '', 265,"
+                " '[]', 'free', 'user', 1, 0, 0, 0)"
             )
         )
         await db.commit()

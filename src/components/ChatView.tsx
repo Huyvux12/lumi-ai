@@ -24,6 +24,7 @@ import {
 } from "@/lib/chat/client";
 import { api, mutation, requestId } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
+import { recordingSeconds } from "@/lib/plans";
 import {
   captureUtterance,
   DialoguePlayer,
@@ -368,7 +369,7 @@ function ChatSession({
     stopVoice();
   }
   async function runCall(version: number, stream: MediaStream) {
-    const maxMs = user?.plan === "premium" ? 120000 : 60000;
+    const maxMs = recordingSeconds(user?.plan) * 1000;
     while (callEpoch.current === version) {
       setCallMode("listening");
       const ctrl = new AbortController();
@@ -576,7 +577,7 @@ function ChatSession({
         () => {
           if (rec.state !== "inactive") rec.stop();
         },
-        user?.plan === "premium" ? 120000 : 60000,
+        recordingSeconds(user?.plan) * 1000,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể mở microphone.");

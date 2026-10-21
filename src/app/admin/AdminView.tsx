@@ -30,6 +30,8 @@ type AdminUser = {
 type Plan = {
   id: string;
   code: string;
+  label: string;
+  paid: boolean;
   price_vnd: number;
   active: boolean;
   quota: Record<string, number>;
@@ -123,9 +125,9 @@ function PlanAvailabilityForm({
         event.preventDefault();
         void save({
           enabled,
-          discount_percent: plan.code === "premium" ? Number(discount) : 0,
+          discount_percent: plan.paid ? Number(discount) : 0,
           promo_codes:
-            plan.code === "premium"
+            plan.paid
               ? codes
                   .split(/[,\n]+/)
                   .map((code) => code.trim())
@@ -142,19 +144,17 @@ function PlanAvailabilityForm({
           onChange={(event) => setEnabled(event.target.checked)}
           disabled={busy}
         />
-        Mở đăng ký và sử dụng {plan.code === "free" ? "Free" : "Premium"}
+        Mở đăng ký gói {plan.label}
       </label>
       <p className="text-xs text-fg-3">
-        Đóng gói sẽ chặn tính năng của cả tài khoản đang dùng gói này.
+        {plan.paid
+          ? "Đóng gói chỉ chặn đơn mua mới. Người đang dùng gói này vẫn dùng bình thường đến hết kỳ."
+          : "Đóng Free khi server quá tải: tài khoản mới vẫn tạo được nhưng vào hàng chờ, tự mở khi Free mở lại hoặc khi mua gói. Tài khoản Free cũ không bị ảnh hưởng."}
       </p>
-      {plan.code === "free" ? (
-        <p className="text-sm text-amber-200">
-          Khi đóng Free: hiện sever quá tải vui lòng đăng kí gói cao cấp hơn
-        </p>
-      ) : (
+      {plan.paid && (
         <>
           <label className="block text-sm">
-            Giảm giá Premium (%)
+            Giảm giá {plan.label} (%)
             <input
               type="number"
               min={0}
@@ -487,7 +487,7 @@ function AdminAccount() {
                           className={button}
                           onClick={() =>
                             edit(
-                              "Ghi nhận khoản tiền đã hoàn bên ngoài; thu hồi kỳ Premium",
+                              "Ghi nhận khoản tiền đã hoàn bên ngoài; thu hồi kỳ gói tương ứng",
                               `/admin/orders/${o.id}/record-refund`,
                               "POST",
                               {},
@@ -515,13 +515,13 @@ function AdminAccount() {
         </>
       )}
       {data !== null && tab === "plans" && (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
           {(data as Plan[])
             .filter((p) => p.active)
             .map((p) => (
               <section key={p.id} className="glass rounded-2xl p-5">
                 <h2 className="text-xl font-semibold">
-                  {p.code} · {p.price_vnd.toLocaleString("vi-VN")} ₫
+                  {p.label ?? p.code} · {p.price_vnd.toLocaleString("vi-VN")} ₫
                 </h2>
                 <PlanAvailabilityForm
                   key={`${p.code}:${p.enabled}:${p.discount_percent}:${p.promo_codes.join(",")}`}
@@ -555,7 +555,7 @@ function AdminAccount() {
                   </button>
                 )}
                 <p className="mt-3 text-xs text-fg-3">
-                  Kỳ Premium đã mua giữ phiên bản giới hạn khi tạo đơn.
+                  Kỳ đã mua giữ phiên bản giới hạn lúc tạo đơn; bản mới áp dụng cho đơn sau.
                 </p>
               </section>
             ))}

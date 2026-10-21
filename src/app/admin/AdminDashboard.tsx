@@ -99,7 +99,7 @@ function MetricCards({ data }: { data: BusinessDashboard }) {
       help: "Tài khoản có ít nhất một lượt chat, chuyển giọng nói hoặc đọc lời thoại hoàn tất trong kỳ. Mỗi tài khoản chỉ tính một lần.",
     },
     {
-      label: "Premium đang hiệu lực",
+      label: "Gói trả phí đang hiệu lực",
       value: number(metrics.premium_users),
       icon: Crown,
       color: "text-amber-300",
@@ -107,7 +107,7 @@ function MetricCards({ data }: { data: BusinessDashboard }) {
       detail: "Trạng thái hiện tại",
       current: metrics.premium_users,
       previous: undefined,
-      help: "Số tài khoản đang có kỳ Premium còn hiệu lực tại thời điểm cập nhật, không phụ thuộc bộ lọc ngày.",
+      help: "Số tài khoản đang có kỳ Basic, Plus hoặc Premium còn hiệu lực tại thời điểm cập nhật, không phụ thuộc bộ lọc ngày.",
     },
   ];
   return (

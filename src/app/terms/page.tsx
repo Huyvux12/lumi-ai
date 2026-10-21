@@ -65,7 +65,7 @@ const sections = [
     title: "7. Gói dịch vụ, thanh toán và hoàn tiền",
     paragraphs: [
       "Tính năng, tình trạng mở bán, mức giá và ưu đãi của từng gói được hiển thị tại trang Gói & thanh toán. Kiểm tra gói, số tiền, mã ưu đãi và thông tin chuyển khoản trước khi xác nhận. Thông tin đã ghi nhận trên đơn hàng là căn cứ đối soát thanh toán.",
-      "Premium được kích hoạt sau khi hệ thống xác nhận thanh toán hoặc xác nhận đơn giảm giá 100% hợp lệ. Kỳ sử dụng là một tháng từ thời điểm kích hoạt; gia hạn sớm nối tiếp kỳ đã mua. Thanh toán chuyển khoản do bạn chủ động thực hiện, không tự động trừ tiền hằng tháng.",
+      "Các gói trả phí Basic, Plus và Premium được kích hoạt sau khi hệ thống xác nhận thanh toán hoặc xác nhận đơn giảm giá 100% hợp lệ. Kỳ sử dụng là một tháng từ thời điểm kích hoạt; gia hạn sớm hoặc mua gói bằng hay thấp hơn sẽ nối tiếp sau kỳ đã mua. Nâng lên gói cao hơn có hiệu lực ngay; phần chưa dùng của kỳ hiện tại và các kỳ đã mua trước được quy đổi thành tiền và trừ vào đơn nâng cấp. Thanh toán chuyển khoản do bạn chủ động thực hiện, không tự động trừ tiền hằng tháng.",
       "Giới hạn và khả năng cung cấp tính năng phụ thuộc gói đang áp dụng. Thay đổi giá hoặc ưu đãi cho đơn mới không làm thay đổi số tiền của đơn đã được tạo.",
       "Nếu chuyển nhầm, thanh toán trùng, chưa được kích hoạt hoặc có yêu cầu hoàn tiền, hãy gửi mã đơn và chứng từ đã che thông tin nhạy cảm qua kênh hỗ trợ. PersonaX kiểm tra từng trường hợp, thông báo hướng xử lý và thực hiện nghĩa vụ hoàn tiền theo thỏa thuận và pháp luật áp dụng. Không chia sẻ mật khẩu ngân hàng hay mã OTP.",
     ],

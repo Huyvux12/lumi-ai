@@ -3,7 +3,7 @@ from pathlib import Path
 from sqlalchemy import select
 from .models import AISettings, Character, Plan, PlanSettings, Prompt, Scene, Voice
 from .prompts import BASE_PROMPT, DEFAULT_TAGS
-from .quotas import FREE, PREMIUM
+from .plan_catalog import PLANS
 from .voice_catalog import VOICE_PRESETS
 
 
@@ -17,11 +17,11 @@ async def seed(db):
     for data in catalog["scenes"]:
         if not await db.get(Scene, data["id"]):
             db.add(Scene(id=data["id"], data=data))
-    for code, price, quota in (("free", 0, FREE), ("premium", 250000, PREMIUM)):
+    for code, tier in PLANS.items():
         if not await db.get(PlanSettings, code):
             db.add(PlanSettings(code=code, enabled=True, discount_percent=0, promo_codes=[]))
         if not (await db.execute(select(Plan).where(Plan.code == code).limit(1))).scalar_one_or_none():
-            db.add(Plan(code=code, price_vnd=price, quota=quota))
+            db.add(Plan(code=code, price_vnd=tier["price_vnd"], quota=tier["quota"]))
     for preset in VOICE_PRESETS:
         row = await db.get(Voice, preset["id"])
         if row is None:

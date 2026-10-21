@@ -32,7 +32,7 @@ for (const failure of ["transcription", "chat"]) {
     const epoch = { current: 1 };
     let recordings = 0, ended = 0;
     const run = loadFunction("src/components/ChatView.tsx", "runCall", {
-      user: { plan: "free" }, callEpoch: epoch, callAbort: { current: null },
+      user: { plan: "free" }, recordingSeconds: () => 60, callEpoch: epoch, callAbort: { current: null },
       setCallMode() {}, setError() {},
       endCall() { ended++; epoch.current++; },
       captureUtterance: async () => {
@@ -56,7 +56,7 @@ test("voice call retries empty speech but ends on the subsequent provider failur
   const epoch = { current: 1 };
   let recordings = 0, ended = 0;
   const run = loadFunction("src/components/ChatView.tsx", "runCall", {
-    user: { plan: "free" }, callEpoch: epoch, callAbort: { current: null }, setCallMode() {}, setError() {},
+    user: { plan: "free" }, recordingSeconds: () => 60, callEpoch: epoch, callAbort: { current: null }, setCallMode() {}, setError() {},
     endCall() { ended++; epoch.current++; },
     captureUtterance: async () => { recordings++; return { type: "audio/webm" }; },
     transcript: async () => { throw new Error(recordings === 1 ? "Chưa nhận được lời nói" : "503 PROVIDER_UNAVAILABLE"); },

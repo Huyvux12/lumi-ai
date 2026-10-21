@@ -12,7 +12,7 @@ const user = {
   id: "mock-account", email: "mock@example.com", name: "Mock", username: "mock", bio: "", hue: 265,
   interests: [], createdAt: 1, role: "user", email_verified: false, mfa_enabled: false,
   plan: "free", signup_plan: "free", has_plan: true, plan_enabled: true, can_use_features: true,
-  plan_message: null, subscription_ends_at: null,
+  plan_message: null, waitlisted: false, subscription_ends_at: null,
 };
 
 test("Next forwards responses taking longer than its old 30-second timeout", async ({ request }) => {
@@ -32,7 +32,7 @@ test("login rejects the backslash redirect reproduction", async ({ page }) => {
 test("avatar and scenario persist across create, edit, profile and chat", async ({ page }) => {
   const registered = await page.request.post("/api/v1/auth/register", {
     headers: { "X-Lumi-Request": "1" },
-    data: { email: "browser@example.com", username: "browser_user", name: "Browser User", password: "BrowserTest123!", plan: "free" },
+    data: { email: "browser@example.com", username: "browser_user", name: "Browser User", password: "BrowserTest123!" },
   });
   expect(registered.ok()).toBeTruthy();
   await page.goto("/create");
@@ -103,12 +103,12 @@ test("an expired order still detects a late paid confirmation", async ({ page })
   let paid = false;
   const order = { id: "late-order", invoice: "LUMI001", status: "expired", created_at: Date.now() - 16 * 60_000,
     expires_at: Date.now() - 60_000, paid_at: null, amount_vnd: 250000, list_price_vnd: 250000,
-    discount_percent: 0, promo_code: null, qr_url: "/favicon.ico", bank: "TEST", account: "TEST", holder: "TEST", environment: "test" };
+    discount_percent: 0, credit_vnd: 0, plan: "premium", plan_label: "Premium", promo_code: null, qr_url: "/favicon.ico", bank: "TEST", account: "TEST", holder: "TEST", environment: "test" };
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/billing/orders/late-order")) paid = true;
     const data = path.endsWith("/me") ? { ...user, plan: paid ? "premium" : null, can_use_features: paid } :
-      path.endsWith("/plans") ? [{ code: "premium", price_vnd: 250000, enabled: true, discount_percent: 0, description: "Premium" }] :
+      path.endsWith("/plans") ? [{ code: "premium", label: "Premium", rank: 3, duration: "1 tháng", price_vnd: 250000, enabled: true, discount_percent: 0, closed_message: null, description: "Premium" }] :
       path.endsWith("/billing/history") ? [{ ...order, status: paid ? "paid" : "expired" }] :
       path.endsWith("/billing/orders/late-order") ? { ...order, status: "paid" } :
       path.endsWith("/billing/subscription") ? { plan: paid ? "premium" : null, ends_at: null, paid_until: null } : [];
