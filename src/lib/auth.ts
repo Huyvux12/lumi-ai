@@ -13,6 +13,8 @@ export type User = {
   role: "user" | "moderator" | "admin" | "owner";
   email_verified: boolean;
   mfa_enabled: boolean;
+  /** Personal invite code; share as /i/CODE. */
+  invite_code: string | null;
   plan: PlanCode | null;
   signup_plan: PlanCode;
   has_plan: boolean;
@@ -114,10 +116,16 @@ export async function signUp(input: {
   username: string;
   hue: number;
   interests: string[];
+  ref?: string;
 }) {
+  const { ref, ...rest } = input;
   const user = await api<User>(
     "/auth/register",
-    mutation({ ...input, email: normalizeEmail(input.email) }),
+    mutation({
+      ...rest,
+      email: normalizeEmail(input.email),
+      ...(ref ? { ref } : {}),
+    }),
   );
   revision++;
   publish(user);

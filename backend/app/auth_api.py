@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from .models import AuthToken, Session, User, now_ms
 from .quotas import entitlement
+from .referrals import TRIAL_DAYS, grant_trial, invite_summary, inviter_for, maybe_qualify, new_invite_code
 from .plan_access import access_view, plan_open
 from .schemas import Input, Login, ProfilePatch, Register
 from .security import (
@@ -41,6 +42,7 @@ async def public_user(db, user):
         "role": user.role,
         "email_verified": user.email_verified,
         "mfa_enabled": user.mfa_enabled,
+        "invite_code": user.invite_code,
         "plan": plan.code if plan else None,
         **await access_view(db, user, plan),
         "subscription_ends_at": sub.ends_at if sub else None,
@@ -52,6 +54,8 @@ async def register(body: Register, request: Request, response: Response, db=Depe
     await request.app.state.limiter.check(f"signup:{request.client.host}", 5, 3600)
     # Sign-up never fails for capacity: while Free is closed the account joins the waitlist.
     waitlisted = not await plan_open(db, "free")
+    # An unknown invite code never blocks sign-up; the account simply has no inviter.
+    inviter = await inviter_for(db, body.ref)
     user = User(
         email=str(body.email).lower(),
         username=body.username,
@@ -60,6 +64,8 @@ async def register(body: Register, request: Request, response: Response, db=Depe
         hue=body.hue,
         interests=body.interests,
         waitlisted=waitlisted,
+        invite_code=await new_invite_code(db),
+        referred_by=inviter.id if inviter else None,
     )
     db.add(user)
     try:
@@ -159,11 +165,30 @@ async def consume_token(db, token, purpose):
 
 
 @router.post("/auth/verify-email")
-async def verify_email(body: TokenInput, db=Depends(db_session)):
+async def verify_email(body: TokenInput, request: Request, db=Depends(db_session)):
     user = await consume_token(db, body.token, "verify")
     user.email_verified = True
+    settings = request.app.state.settings
+    trial = await grant_trial(db, settings, user)
+    await maybe_qualify(db, settings, user.id)
     await db.commit()
-    return {"ok": True}
+    return {"ok": True, "invite_trial_days": TRIAL_DAYS if trial else 0}
+
+
+@router.get("/me/invite")
+async def my_invite(request: Request, user=Depends(require_user), db=Depends(db_session)):
+    summary = await invite_summary(db, request.app.state.settings, user)
+    await db.commit()
+    return summary
+
+
+@router.get("/invites/{code}")
+async def invite_preview(code: str, request: Request, db=Depends(db_session)):
+    await request.app.state.limiter.check(f"invite-preview:{request.client.host}", 60)
+    inviter = await inviter_for(db, code[:12])
+    if not inviter:
+        fail("INVITE_NOT_FOUND", "Mã mời không tồn tại.", 404)
+    return {"code": inviter.invite_code, "name": inviter.name, "username": inviter.username, "trial_days": TRIAL_DAYS}
 
 
 @router.post("/auth/resend-verification")

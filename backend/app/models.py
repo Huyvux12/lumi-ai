@@ -26,6 +26,9 @@ class User(Base):
     interests: Mapped[list] = mapped_column(JSON, default=list)
     signup_plan: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
     waitlisted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    invite_code: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, nullable=True)
+    referred_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    referral_qualified_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     role: Mapped[str] = mapped_column(String(16), default="user")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -172,6 +175,8 @@ class Order(Base):
     discount_percent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     promo_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     credit_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # "purchase" for paid orders; gifted 0đ periods carry their own source and are never revenue.
+    source: Mapped[str] = mapped_column(String(24), default="purchase", server_default="purchase")
     environment: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)

@@ -107,10 +107,16 @@ function MetricCards({ data }: { data: BusinessDashboard }) {
       detail: "Trạng thái hiện tại",
       current: metrics.premium_users,
       previous: undefined,
-      help: "Số tài khoản đang có kỳ Basic, Plus hoặc Premium còn hiệu lực tại thời điểm cập nhật, không phụ thuộc bộ lọc ngày.",
+      help: "Số tài khoản đang có kỳ Basic, Plus hoặc Premium đã thanh toán còn hiệu lực tại thời điểm cập nhật. Không tính kỳ tặng từ chương trình mời bạn.",
     },
   ];
+  const referral = [
+    ["Đăng ký qua mã mời", metrics.referral_signups, `Trong ${period.days} ngày`],
+    ["Lượt mời hợp lệ", metrics.referral_qualified, "Đã xác minh email và trò chuyện"],
+    ["Đang dùng quà mời", metrics.gifted_users, "Trial 7 ngày hoặc tháng Basic thưởng"],
+  ] as const;
   return (
+    <>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(
         ({
@@ -162,6 +168,18 @@ function MetricCards({ data }: { data: BusinessDashboard }) {
         ),
       )}
     </div>
+    <div className={`${panel} mt-4 grid gap-3 p-4 sm:grid-cols-3`} aria-label="Chương trình mời bạn">
+      {referral.map(([label, value, detail]) => (
+        <div key={label} className="flex items-baseline justify-between gap-3 sm:block">
+          <p className="text-xs font-medium text-fg-2">{label}</p>
+          <p className="text-xl font-semibold tabular-nums" data-testid={`metric-${label}`}>
+            {number(value ?? 0)}
+          </p>
+          <p className="hidden text-[11px] text-fg-3 sm:block">{detail}</p>
+        </div>
+      ))}
+    </div>
+    </>
   );
 }
 

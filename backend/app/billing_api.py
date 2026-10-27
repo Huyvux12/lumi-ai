@@ -99,6 +99,8 @@ async def subscription(user=Depends(require_user), db=Depends(db_session)):
         **await access_view(db, user, plan),
         "ends_at": sub.ends_at if sub else None,
         "paid_until": last.ends_at if last else None,
+        # "purchase", or a gift such as "referral_trial" / "referral_reward".
+        "source": (await db.get(Order, sub.order_id)).source if sub else None,
     }
 
 

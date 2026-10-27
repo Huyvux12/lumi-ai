@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import delete, func, select
 from .billing import apply_payment, matches_invoice, order_status, sepay_transaction_payload
-from .admin_dashboard import dashboard, moderation_dashboard
+from .admin_dashboard import current_subscribers, dashboard, moderation_dashboard
 from .catalog_api import character_view
 from .models import (
     Audit,
@@ -72,11 +72,7 @@ async def summary(request: Request, user=Depends(require_admin), db=Depends(db_s
                 Conversation.updated_at > at - 7 * 86400000
             )
         ),
-        "premium_users": await db.scalar(
-            select(func.count(func.distinct(Subscription.user_id))).where(
-                Subscription.active.is_(True), Subscription.starts_at <= at, Subscription.ends_at > at
-            )
-        ),
+        "premium_users": await current_subscribers(db, at, paid=True),
         "revenue_vnd": paid,
         "input_tokens_30d": input_tokens,
         "output_tokens_30d": output_tokens,

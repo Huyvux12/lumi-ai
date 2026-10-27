@@ -14,6 +14,20 @@ VN_OFFSET_MS = 7 * 3600000
 MODERATION_ACTIONS = ("character.moderate", "catalog.update", "scene.create", "scene.update", "report.close")
 
 
+async def current_subscribers(db, at, paid):
+    source = Order.source == "purchase" if paid else Order.source != "purchase"
+    return await db.scalar(
+        select(func.count(func.distinct(Subscription.user_id)))
+        .join(Order, Order.id == Subscription.order_id)
+        .where(
+            Subscription.active.is_(True),
+            Subscription.starts_at <= at,
+            Subscription.ends_at > at,
+            source,
+        )
+    )
+
+
 def local_day(column):
     # Integer division keeps SQLite/PostgreSQL buckets identical (no rounding casts).
     return (column + VN_OFFSET_MS) // DAY_MS
@@ -195,12 +209,18 @@ async def dashboard(db, settings, days):
         "new_users": await new_users(start, end),
         "active_users": await active_users(start, end),
         "total_users": await db.scalar(select(func.count()).select_from(User)),
-        "premium_users": await db.scalar(
-            select(func.count(func.distinct(Subscription.user_id))).where(
-                Subscription.active.is_(True),
-                Subscription.starts_at <= at,
-                Subscription.ends_at > at,
-            )
+        # Paying users only; gifted invite periods are reported separately.
+        "premium_users": await current_subscribers(db, at, paid=True),
+        "gifted_users": await current_subscribers(db, at, paid=False),
+        "referral_signups": await db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.referred_by.is_not(None), User.created_at >= start, User.created_at < end)
+        ),
+        "referral_qualified": await db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.referral_qualified_at >= start, User.referral_qualified_at < end)
         ),
     }
     previous = {

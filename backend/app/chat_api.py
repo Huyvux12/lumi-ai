@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -9,10 +10,12 @@ from .prompts import assistant_model_content
 from .providers import generate_reply
 from .provider_config import active_llm
 from .quotas import entitlement, finish, reserve, usage_lease
+from .referrals import maybe_qualify
 from .schemas import TurnInput
 from .security import db_session, fail, require_feature_user, require_user
 
 router = APIRouter()
+log = logging.getLogger("lumi")
 CHAT_HEARTBEAT_SECONDS = 15
 
 
@@ -148,6 +151,14 @@ async def turn(
                 await update.commit()
                 public = message_view(current)
             success = True
+            if user.referred_by and not user.referral_qualified_at:
+                # A first completed turn can qualify an invite; rewards never break the reply.
+                try:
+                    async with factory() as rewards:
+                        await maybe_qualify(rewards, settings, user.id)
+                        await rewards.commit()
+                except Exception:
+                    log.exception("Referral qualification failed for %s", user.id)
             for segment in public["segments"]:
                 yield event("segment.completed", {"id": answer.id, "segment": segment})
             yield event("turn.completed", {"message": public, "mode": "demo" if meta.get("demo") else "live"})

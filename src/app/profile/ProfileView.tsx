@@ -37,6 +37,7 @@ import {
 import { type Conversation } from "@/lib/chat/client";
 import { api } from "@/lib/api";
 import { SecurityPanel } from "@/components/SecurityPanel";
+import { InviteCard } from "@/components/InviteCard";
 import { categories } from "@/lib/data";
 import {
   deleteUserChar,
@@ -231,6 +232,8 @@ function Profile({ user }: { user: User }) {
             ))}
           </div>
         )}
+
+        <InviteCard />
 
         {/* stats */}
         <div className="mt-8 grid grid-cols-3 gap-3">

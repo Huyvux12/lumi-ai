@@ -46,6 +46,8 @@ type Subscription = {
   plan_label: string | null;
   ends_at: number | null;
   paid_until: number | null;
+  /** "purchase", or a gift from the invite programme. */
+  source: string | null;
 };
 const money = (value: number) => value.toLocaleString("vi-VN") + " ₫";
 const date = (value: number) => new Date(value).toLocaleString("vi-VN");
@@ -307,11 +309,19 @@ function BillingAccount({ initialPromo }: { initialPromo: string }) {
         <p className="glass mt-6 rounded-2xl p-4">
           Gói tài khoản:{" "}
           <strong>{subscription.plan_label ?? planLabel(subscription.plan)}</strong>
-          {subscription.plan &&
+          {subscription.source && subscription.source !== "purchase" && subscription.ends_at ? (
+            <>
+              {" "}
+              (quà {subscription.source === "referral_trial" ? "dùng thử từ lời mời" : "mời bạn bè"}) · đến{" "}
+              {date(subscription.ends_at)}
+            </>
+          ) : (
+            subscription.plan &&
             isPaid(subscription.plan) &&
             subscription.paid_until && (
               <> · Đã thanh toán đến {date(subscription.paid_until)}</>
-            )}
+            )
+          )}
           .
         </p>
       )}

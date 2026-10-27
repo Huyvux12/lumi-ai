@@ -47,6 +47,10 @@ export type BusinessDashboard = {
     active_users: number;
     total_users: number;
     premium_users: number;
+    /** Accounts on a gifted invite period (trial or reward); never counted as paying. */
+    gifted_users?: number;
+    referral_signups?: number;
+    referral_qualified?: number;
   };
   previous: { revenue_vnd: number; new_users: number; active_users: number };
   series: DashboardDay[];

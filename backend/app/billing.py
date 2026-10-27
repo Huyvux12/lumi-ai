@@ -54,6 +54,7 @@ def order_view(order, settings, code=None):
         "plan": code,
         "plan_label": plan_label(code) if code else None,
         "credit_vnd": order.credit_vnd,
+        "source": order.source,
         "invoice": order.invoice,
         "amount_vnd": order.amount_vnd,
         "list_price_vnd": order.list_price_vnd,

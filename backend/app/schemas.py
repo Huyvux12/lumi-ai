@@ -13,6 +13,7 @@ class Register(Input):
     username: str = Field(pattern=r"^[a-z0-9_.]{3,20}$")
     hue: int = Field(default=265, ge=0, le=360)
     interests: list[str] = Field(default_factory=list, max_length=10)
+    ref: str | None = Field(default=None, pattern=r"^[A-Za-z0-9]{4,12}$")
 
     @field_validator("password")
     @classmethod

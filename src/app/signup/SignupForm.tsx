@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   Compass,
   Eye,
   EyeOff,
+  Gift,
   Loader2,
   Plus,
   Sparkles,
@@ -19,6 +20,7 @@ import { AuthFrame } from "@/components/auth/AuthFrame";
 import type { MascotMood } from "@/components/Mascot";
 import { UserAvatar } from "@/components/UserAvatar";
 import { isEmail, isUsername, signUp } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { fireworks } from "@/lib/confetti";
 import { categories } from "@/lib/data";
 
@@ -50,7 +52,11 @@ const toUsername = (name: string) =>
     .replace(/^_|_$/g, "")
     .slice(0, 20);
 
-export function SignupForm({ next }: { next: string }) {
+type Inviter = { code: string; name: string; username: string; trial_days: number };
+
+const INVITE = /^[A-Za-z0-9]{4,12}$/;
+
+export function SignupForm({ next, invite = "" }: { next: string; invite?: string }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
@@ -70,6 +76,26 @@ export function SignupForm({ next }: { next: string }) {
   const [done, setDone] = useState(false);
   // Signed up while Free was full: the account exists and waits for a free slot.
   const [waitlisted, setWaitlisted] = useState(false);
+  const [ref, setRef] = useState(invite);
+  const [inviter, setInviter] = useState<Inviter | null>(null);
+  const [refChecked, setRefChecked] = useState("");
+  const code = ref.trim().toUpperCase();
+  // Look the code up once typing settles; an unknown code never blocks sign-up.
+  useEffect(() => {
+    if (!INVITE.test(code)) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      api<Inviter>(`/invites/${encodeURIComponent(code)}`)
+        .then((found) => live && (setInviter(found), setRefChecked(code)))
+        .catch(() => live && (setInviter(null), setRefChecked(code)));
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [code]);
+  const invited = inviter !== null && inviter.code === code;
+  const badCode = code !== "" && refChecked === code && !invited;
 
   const pwScore = strength(password);
   const hasError = Object.values(errors).some(Boolean);
@@ -163,7 +189,15 @@ export function SignupForm({ next }: { next: string }) {
     if (step < 2) return go(step + 1);
     setBusy(true);
     try {
-      const user = await signUp({ email, password, name, username, hue, interests });
+      const user = await signUp({
+        email,
+        password,
+        name,
+        username,
+        hue,
+        interests,
+        ref: invited ? code : undefined,
+      });
       setWaitlisted(user.waitlisted);
       setDone(true);
       fireworks();
@@ -210,6 +244,15 @@ export function SignupForm({ next }: { next: string }) {
               ? `@${username} ơi, Lumi đang đông người dùng mới nên tài khoản miễn phí của bạn đang xếp hàng. Bạn sẽ dùng được ngay khi có chỗ, hoặc chọn một gói để bắt đầu luôn.`
               : `@${username} ơi, hàng chục nhân vật đang chờ bạn bắt chuyện.`}
           </p>
+          {invited && (
+            <p className="mt-4 flex items-start gap-2 rounded-2xl border border-accent/30 bg-accent/10 p-3 text-left text-sm">
+              <Gift className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+              <span>
+                Mở email <strong>{email}</strong> và bấm link xác minh để nhận{" "}
+                <strong>{inviter.trial_days} ngày Basic miễn phí</strong> từ lời mời của @{inviter.username}.
+              </span>
+            </p>
+          )}
           <div className="mt-7 flex w-full flex-col gap-3">
             <motion.button
               type="button"
@@ -239,6 +282,15 @@ export function SignupForm({ next }: { next: string }) {
 
   return (
     <AuthFrame mood={mood} look={look} says={says} shake={shake}>
+      {invited && (
+        <p className="mb-5 flex items-start gap-2 rounded-2xl border border-accent/30 bg-accent/10 p-3 text-sm">
+          <Gift className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+          <span>
+            <strong>@{inviter.username}</strong> mời bạn tham gia PersonaX. Xác minh email sau khi đăng ký để nhận{" "}
+            <strong>{inviter.trial_days} ngày Basic miễn phí</strong>.
+          </span>
+        </p>
+      )}
       {/* progress */}
       <ol
         className="mb-6 flex items-center gap-2"
@@ -379,6 +431,28 @@ export function SignupForm({ next }: { next: string }) {
                         clear("confirm");
                       }}
                     />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-fg-2">
+                      Mã mời <span className="text-fg-3">(không bắt buộc)</span>
+                    </span>
+                    <input
+                      className="field uppercase tracking-widest"
+                      placeholder="VD: K7QX2MP"
+                      maxLength={12}
+                      autoComplete="off"
+                      value={ref}
+                      aria-invalid={badCode}
+                      aria-describedby="invite-hint"
+                      onChange={(e) => setRef(e.target.value.replace(/[^A-Za-z0-9]/g, ""))}
+                    />
+                    <span id="invite-hint" className={`text-xs ${badCode ? "text-amber-200" : "text-fg-3"}`} aria-live="polite">
+                      {invited
+                        ? `Mã của @${inviter.username} · nhận ${inviter.trial_days} ngày Basic sau khi xác minh email`
+                        : badCode
+                          ? "Không tìm thấy mã này. Bạn vẫn có thể đăng ký bình thường."
+                          : "Có mã từ bạn bè? Nhập để nhận quà dùng thử."}
+                    </span>
                   </label>
                 </>
               )}

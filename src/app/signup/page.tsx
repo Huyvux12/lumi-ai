@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: "Đăng ký — PersonaX" };
 export default async function SignupPage({
   searchParams,
 }: PageProps<"/signup">) {
-  const { next } = await searchParams;
-  return <SignupForm next={safeNext(next)} />;
+  const { next, ref } = await searchParams;
+  const code = typeof ref === "string" ? ref.trim().toUpperCase().slice(0, 12) : "";
+  return <SignupForm next={safeNext(next)} invite={code} />;
 }

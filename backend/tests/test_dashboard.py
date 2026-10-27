@@ -183,6 +183,9 @@ async def test_dashboard_groups_vietnam_days_and_counts_all_records(env, monkeyp
         "active_users": 2,
         "total_users": 202,
         "premium_users": 1,
+        "gifted_users": 0,
+        "referral_signups": 0,
+        "referral_qualified": 0,
     }
     assert data["previous"] == {"revenue_vnd": 200000, "new_users": 1, "active_users": 1}
     by_day = {day["date"]: day for day in data["series"]}
