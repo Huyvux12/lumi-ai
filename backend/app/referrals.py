@@ -19,6 +19,8 @@ TRIAL_DAYS = 7
 INVITES_PER_REWARD = 3
 MAX_REWARDS = 3
 GIFT_SOURCES = ("referral_trial", "referral_reward")
+# In-app promotions an admin can switch off; the invite programme itself keeps working.
+PROMOTIONS = ("invite_banner",)
 
 
 def random_code():

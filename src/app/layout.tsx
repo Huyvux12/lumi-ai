@@ -9,6 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for Open Graph images shared on Facebook and Zalo.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://personaxai.tech"),
   title: "PersonaX — Khám phá nhân vật AI",
   description: "Khám phá và trò chuyện nhập vai với nhân vật anime, game và nhân vật AI của riêng bạn.",
 };

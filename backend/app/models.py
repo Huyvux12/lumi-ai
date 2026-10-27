@@ -46,6 +46,15 @@ class AISettings(Base):
     updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
+class Promotion(Base):
+    """On/off switches for in-app promotions, toggled by admins (e.g. the invite popup)."""
+
+    __tablename__ = "promotions"
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
 class ProviderCredential(Base):
     __tablename__ = "provider_credentials"
     id: Mapped[str] = mapped_column(String(44), primary_key=True)

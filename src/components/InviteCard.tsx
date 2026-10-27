@@ -52,7 +52,7 @@ export function InviteCard() {
   }
 
   return (
-    <section className="glass mt-8 rounded-3xl p-5 sm:p-6" aria-labelledby="invite-title">
+    <section id="invite" className="glass mt-8 scroll-mt-24 rounded-3xl p-5 sm:p-6" aria-labelledby="invite-title">
       <h2 id="invite-title" className="flex items-center gap-2 text-lg font-semibold">
         <Gift className="size-5 text-accent" aria-hidden="true" />
         Mời bạn bè

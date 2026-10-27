@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import EmailStr, Field, StringConstraints
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
-from .models import AuthToken, Session, User, now_ms
+from .models import AuthToken, Promotion, Session, User, now_ms
 from .quotas import entitlement
 from .referrals import TRIAL_DAYS, grant_trial, invite_summary, inviter_for, maybe_qualify, new_invite_code
 from .plan_access import access_view, plan_open
@@ -180,6 +180,11 @@ async def my_invite(request: Request, user=Depends(require_user), db=Depends(db_
     summary = await invite_summary(db, request.app.state.settings, user)
     await db.commit()
     return summary
+
+
+@router.get("/promotions")
+async def promotions(db=Depends(db_session)):
+    return {row.code: row.enabled for row in (await db.execute(select(Promotion))).scalars()}
 
 
 @router.get("/invites/{code}")

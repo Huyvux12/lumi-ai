@@ -194,3 +194,23 @@ async def test_gifted_periods_are_not_paying_users_or_revenue(env):
     assert metrics["revenue_vnd"] == 0
     assert metrics["referral_signups"] == 1 and metrics["referral_qualified"] == 0
     assert (await client.get("/api/v1/admin/summary")).json()["premium_users"] == 0
+
+
+async def test_admin_can_switch_the_invite_popup_off_and_on(env):
+    app, client, _ = env
+    assert (await client.get("/api/v1/promotions")).json() == {"invite_banner": True}
+    await register(client)
+    assert (
+        await client.put("/api/v1/admin/promotions/invite_banner", json={"enabled": False})
+    ).status_code == 403
+    async with app.state.db() as db:
+        (await db.scalar(select(User))).role = "admin"
+        await db.commit()
+    response = await client.put("/api/v1/admin/promotions/invite_banner", json={"enabled": False})
+    assert response.status_code == 200 and response.json() == {"code": "invite_banner", "enabled": False}
+    assert (await client.get("/api/v1/promotions")).json() == {"invite_banner": False}
+    assert (await client.get("/api/v1/admin/promotions")).json()[0]["enabled"] is False
+    assert (await client.put("/api/v1/admin/promotions/nope", json={"enabled": True})).status_code == 404
+    # Switching the popup off never stops invite codes from working.
+    code = (await client.get("/api/v1/me")).json()["invite_code"]
+    assert (await client.get(f"/api/v1/invites/{code}")).status_code == 200

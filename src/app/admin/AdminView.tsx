@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ProviderPanel, type ProviderData } from "./ProviderPanel";
 import { AdminShell, adminLabels } from "./AdminShell";
 import { AdminDashboard, DashboardSkeleton } from "./AdminDashboard";
+import { PromotionPanel } from "./PromotionPanel";
 import type { AdminTab, DashboardData, DashboardQueue } from "./dashboard-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api";
@@ -514,6 +515,7 @@ function AdminAccount() {
           </div>
         </>
       )}
+      {data !== null && tab === "plans" && <PromotionPanel />}
       {data !== null && tab === "plans" && (
         <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
           {(data as Plan[])

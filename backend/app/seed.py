@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 from sqlalchemy import select
-from .models import AISettings, Character, Plan, PlanSettings, Prompt, Scene, Voice
+from .referrals import PROMOTIONS
+from .models import AISettings, Character, Plan, PlanSettings, Promotion, Prompt, Scene, Voice
 from .prompts import BASE_PROMPT, DEFAULT_TAGS
 from .plan_catalog import PLANS
 from .voice_catalog import VOICE_PRESETS
@@ -26,6 +27,9 @@ async def seed(db):
         row = await db.get(Voice, preset["id"])
         if row is None:
             db.add(Voice(**preset))
+    for code in PROMOTIONS:
+        if not await db.get(Promotion, code):
+            db.add(Promotion(code=code, enabled=True))
     if not (await db.execute(select(Prompt).limit(1))).scalar_one_or_none():
         db.add(Prompt(text=BASE_PROMPT, active_tags=DEFAULT_TAGS, published=True))
     await db.commit()

@@ -132,6 +132,10 @@ class PlanAvailabilityPatch(Reason):
         return list(dict.fromkeys(values))
 
 
+class PromotionPatch(Input):
+    enabled: bool
+
+
 class OrderInput(Input):
     plan: Literal["basic", "plus", "premium"] = "premium"
     promo_code: str | None = Field(default=None, max_length=32)

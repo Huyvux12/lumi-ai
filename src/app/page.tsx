@@ -1,6 +1,7 @@
 import { CategoryChips } from "@/components/CategoryChips";
 import { CharacterRail } from "@/components/CharacterRail";
 import { HomeHero } from "@/components/HomeHero";
+import { InvitePopup } from "@/components/InvitePopup";
 import { MyCharactersRail } from "@/components/MyCharactersRail";
 import { PageFade } from "@/components/PageFade";
 import { LiveScenes, CommunityRail } from "@/components/CatalogResults";
@@ -16,6 +17,7 @@ export default function Home() {
 
   return (
     <PageFade className="mx-auto flex max-w-[1400px] flex-col gap-10 px-4 py-6 sm:px-6 lg:px-14">
+      <InvitePopup />
       <StarPicker characters={stars} />
       <HomeHero faces={stars.slice(0, 6)} />
       <div className="flex flex-col gap-4">

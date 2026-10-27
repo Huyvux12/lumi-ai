@@ -13,6 +13,7 @@ from .models import (
     PaymentEvent,
     Plan,
     PlanSettings,
+    Promotion,
     Prompt,
     Report,
     Session,
@@ -27,7 +28,7 @@ from .plan_catalog import PAID_CODES, PLANS, plan_label, plan_rank
 from .quotas import admin_usage
 from .provider_config import active_llm, cost_totals
 from .provider_credentials import credential_metadata
-from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromptInput, Reason, UserPatch, VoiceInput
+from .schemas import Input, PlanAvailabilityPatch, PlanPatch, PromotionPatch, PromptInput, Reason, UserPatch, VoiceInput
 from .voice_catalog import OFFICIAL_VOICES, voice_view
 from .security import db_session, fail, require_admin, require_owner, require_staff
 from pydantic import Field
@@ -235,6 +236,25 @@ async def plans(user=Depends(require_admin), db=Depends(db_session)):
         }
         for p in rows
     ]
+
+
+@router.get("/promotions")
+async def promotion_list(user=Depends(require_admin), db=Depends(db_session)):
+    rows = (await db.execute(select(Promotion).order_by(Promotion.code))).scalars()
+    return [{"code": p.code, "enabled": p.enabled, "updated_at": p.updated_at} for p in rows]
+
+
+@router.put("/promotions/{code}")
+async def update_promotion(
+    code: str, body: PromotionPatch, user=Depends(require_admin), db=Depends(db_session)
+):
+    row = await db.get(Promotion, code, with_for_update=True)
+    if not row:
+        fail("NOT_FOUND", "Không tìm thấy chương trình.", 404)
+    audit(db, user, "promotion.toggle", code, {"before": row.enabled, "after": body.enabled})
+    row.enabled, row.updated_at = body.enabled, now_ms()
+    await db.commit()
+    return {"code": code, "enabled": row.enabled}
 
 
 @router.put("/plans/{code}/availability")
