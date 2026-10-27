@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from .catalog_api import own_conversation
 from .models import AudioJob, Character, Message, Usage, Voice, now_ms
-from .prompts import speech_parts
+from .prompts import speech_budget_ms, speech_parts
 from .provider_config import active_stt
 from .providers import normalize_audio, transcribe, tts_stream
 from .quotas import entitlement, finish, reserve, usage_lease
@@ -126,7 +126,8 @@ async def create_tts(
     if cached and (audio_dir / (cached.id + ".pcm")).exists():
         return {"id": cached.id, "stream_url": f"/api/v1/speech/jobs/{cached.id}/stream"}
     chars = sum(len(s["text"]) for s in message.segments if s["type"] == "dialogue")
-    estimate_ms = max(1000, chars * 100)  # Reservation, replaced with actual PCM duration when complete.
+    # Upper bound for the stream, replaced by the real PCM duration when complete.
+    estimate_ms = speech_budget_ms(message.segments)
     usage, fresh = await reserve(db, user.id, "tts", idempotency_key, chars, estimate_ms)
     if not fresh:
         fail("KEY_CONFLICT", "Mã yêu cầu đã được sử dụng.", 409)
@@ -204,8 +205,7 @@ async def audio(ident: str, request: Request, user=Depends(require_feature_user)
                                     return
                             checked_at = time.monotonic()
                         remaining = max_bytes - received
-                        if len(chunk) > remaining:
-                            raise ValueError("Audio exceeds reserved duration")
+                        # Never exceed the reservation, but keep what was spoken instead of failing.
                         chunk = chunk[: remaining - remaining % 2]
                         if not chunk:
                             break

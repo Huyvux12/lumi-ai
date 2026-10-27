@@ -22,7 +22,7 @@ import {
   type ChatMessage,
   type Conversation,
 } from "@/lib/chat/client";
-import { api, mutation, requestId } from "@/lib/api";
+import { api, ApiError, mutation, requestId } from "@/lib/api";
 import { useAuthReady, useUser } from "@/lib/auth";
 import { recordingSeconds } from "@/lib/plans";
 import {
@@ -234,7 +234,9 @@ function ChatSession({
         !(e instanceof DOMException && e.name === "AbortError")
       )
         setError(e instanceof Error ? e.message : "Không thể phát giọng đọc.");
-      if (voiceVersion === voiceEpoch.current && callActive.current) endCall();
+      // A busy voice only skips this reading; the call keeps listening for the next turn.
+      const busy = e instanceof ApiError && e.code === "TTS_BUSY";
+      if (voiceVersion === voiceEpoch.current && callActive.current && !busy) endCall();
     } finally {
       if (version === epoch.current && voiceVersion === voiceEpoch.current)
         setPlaying(null);

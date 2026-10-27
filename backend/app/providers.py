@@ -4,7 +4,7 @@ import asyncio
 import base64
 import json
 import math
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import httpx
 from pydantic import ValidationError
 from .prompts import checked_segments, system_prompt
@@ -205,6 +205,39 @@ async def tts_credentials(settings):
     return root + settings.tts_model + ":streamGenerateContent?alt=sse", headers
 
 
+TTS_BUSY_MESSAGE = "Giọng đọc đang bận, hãy thử lại sau vài giây."
+TTS_WAIT_S = 8.0
+
+
+class RequestWindow:
+    """Process-wide sliding window: at most `limit` upstream calls per 60 s, waiting briefly for a slot.
+
+    The API runs as one process, so this caps the whole deployment's Gemini TTS traffic.
+    """
+
+    def __init__(self):
+        self.started = []
+        self.lock = asyncio.Lock()
+
+    async def acquire(self, limit, wait_s=TTS_WAIT_S, clock=None):
+        clock = clock or asyncio.get_running_loop().time
+        deadline = clock() + wait_s
+        while True:
+            async with self.lock:
+                now = clock()
+                self.started = [t for t in self.started if now - t < 60]
+                if len(self.started) < max(1, limit):
+                    self.started.append(now)
+                    return
+                free_at = self.started[0] + 60
+            if free_at > deadline:
+                fail("TTS_BUSY", TTS_BUSY_MESSAGE, 429)
+            await asyncio.sleep(max(0.05, free_at - clock()))
+
+
+tts_window = RequestWindow()
+
+
 @asynccontextmanager
 async def tts_stream(client, settings, parts, voice):
     url, headers = await tts_credentials(settings)
@@ -215,7 +248,21 @@ async def tts_stream(client, settings, parts, voice):
             "speechConfig": {"voiceConfig": {"voice": voice}},
         },
     }
-    async with client.stream("POST", url, headers=headers, json=body) as response:
+    async with AsyncExitStack() as stack:
+        for attempt in range(2):
+            await tts_window.acquire(settings.tts_rpm)
+            response = await stack.enter_async_context(client.stream("POST", url, headers=headers, json=body))
+            if response.status_code != 429:
+                break
+            # Provider-side minute quota: honour Retry-After once, then report a busy voice.
+            try:
+                delay = float(response.headers.get("retry-after", "4"))
+            except ValueError:
+                delay = 4.0
+            await response.aclose()
+            if attempt or delay > TTS_WAIT_S:
+                fail("TTS_BUSY", TTS_BUSY_MESSAGE, 429)
+            await asyncio.sleep(max(0.5, delay))
         if response.status_code != 200:
             fail("PROVIDER_UNAVAILABLE", "Chưa thể tạo giọng đọc. Hãy thử lại sau.", 502)
 

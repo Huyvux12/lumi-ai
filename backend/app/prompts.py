@@ -137,6 +137,22 @@ STYLES = {
 }
 
 
+def speech_budget_ms(segments):
+    """Generous ceiling for a reply's audio; quota is charged on the real duration.
+
+    Measured on Gemini TTS: ~65-95 ms per character normally, ~170 ms when a short line carries
+    a vocal tag (<sigh>, <giggle>), and slower for slow or whispered delivery.
+    """
+    total = 0
+    for segment in segments:
+        if segment["type"] != "dialogue":
+            continue
+        text = segment.get("tts_text") or segment["text"]
+        per_char = 220 if segment.get("pace") == "slow" or segment.get("delivery") == "whispered" else 180
+        total += len(TAG.sub("", text)) * per_char + len(TAG.findall(text)) * 1500 + 600
+    return max(4000, total)
+
+
 def speech_parts(segments, voice):
     result = []
     for segment in segments:

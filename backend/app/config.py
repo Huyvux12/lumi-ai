@@ -67,6 +67,8 @@ class Settings:
     tts_model: str = field(default_factory=lambda: os.getenv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts"))
     tts_project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", ""))
     tts_auth_mode: str = field(default_factory=lambda: os.getenv("GEMINI_TTS_AUTH_MODE", "api_key"))
+    # Gemini TTS quota is per minute for the whole project; stay one under the provider limit.
+    tts_rpm: int = field(default_factory=lambda: int(os.getenv("GEMINI_TTS_RPM", "9")))
     sepay_secret: str = field(default_factory=lambda: os.getenv("SEPAY_WEBHOOK_SECRET", ""))
     sepay_token: str = field(default_factory=lambda: os.getenv("SEPAY_API_TOKEN", ""))
     sepay_environment: str = field(default_factory=lambda: os.getenv("SEPAY_ENV", "test"))
